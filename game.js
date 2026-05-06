@@ -523,241 +523,253 @@ function pixelSpriteSheet(frames, palette, sizePct, opts = {}) {
 }
 
 // =============================================================
-// PLAYER SPRITE — cloaked wanderer (back-facing, 16x16)
+// PLAYER SPRITE — cloaked wanderer (SIDE-PROFILE facing right, 16x16)
 // =============================================================
-// Warm tan/leather cloak — needs to stand out clearly against the dark dungeon stone.
-// (Earlier dark-brown palette blended into the background.)
+// Pokemon Gen-1 staging: trainer at bottom-left of the arena facing the foe
+// at upper-right. The sprite is drawn as a side profile so the player's FACE
+// is visible — hood pulled forward over the brow, leaving the cheek, eye and
+// jaw line exposed on the right (foe-facing) side.
 const PLAYER_PALETTE = {
   '#': '#0a0604',  // outline (kept very dark)
-  'O': '#a06030',  // cloak highlight (warm tan — main visual)
+  'O': '#a06030',  // cloak highlight (warm tan)
   'o': '#704a26',  // cloak mid (warm brown)
-  'd': '#3a1f10',  // cloak shadow / hood interior (deep burnt umber)
-  'b': '#1a0a04',  // boot — VERY dark for high contrast against the warm cloak
-  'e': '#ff8030',  // ember-glint (vivid orange — visible in attack/hurt frames)
-  'w': '#f4ebd0',  // weapon-flash highlight / face eyes (bone-pale)
-  'y': '#c9a857'   // gold accent (belt buckle, weapon trim — used sparingly)
+  'd': '#3a1f10',  // cloak shadow / hood interior
+  'b': '#1a0a04',  // boot / eye dot (very dark)
+  'h': '#3a2014',  // hair (dark warm brown — sideburn at the temple)
+  's': '#e8c0a0',  // skin (warm pale — face profile)
+  'e': '#ff8030',  // ember-glint (vivid orange — eye flash in attack/hurt)
+  'w': '#f4ebd0',  // bone-pale (weapon flash highlight)
+  'y': '#c9a857'   // gold accent (used sparingly)
 };
 
-// All player frames are 16x16 back-view. Hood/head rows (0-5) are stable across
-// most poses; variations live in the body/cloak/legs (rows 6-15). Weapons are
-// composited separately (see Cutscene module) — these sprites only show body
-// posture, not the wielded weapon.
+// All frames 16x16, side-profile facing RIGHT. Columns 0-7 are the back of the
+// figure (hood crown, cloak drape); columns 8-12 hold the visible face profile
+// (forehead skin, eye, glint); rows 14-15 are the boots — back foot left,
+// front foot right. Weapons are composited separately (see Cutscene module).
 const PLAYER_PX = {
-  // IDLE — 4-frame loop, ~5 fps. Cloak fold sways gently L→C→R→C.
-  // Two eye-glints (w) peer out from inside the hood at row 5 cols 5,10 — gives
-  // the figure a visible face cue, otherwise a back-view hood is just a silhouette.
-  idle: { fps: 5, loop: true, frames: [
-    [
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OowoooowoO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+  // IDLE — 4-frame loop. Side-profile (facing right). Hood crown wraps the
+  // back-left of the head; the face profile (forehead skin → eye → cheek → jaw)
+  // emerges on the right. Eye dot 'b' at col 9 row 5; ember glint 'e' just past
+  // it. Cloak fold sways gently across the four frames.
+  idle: { fps: 4, loop: true, frames: [
+    [ // F0 — neutral (eye open, cloak fold centered)
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // fold shifts right
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OowoooowoO#..','.#OOooooooooOO#.','.#OOoooddddoOO#.',
-      '.#OOoooddddoOO#.','.#OOoooddddoOO#.','.#OOoooddddoOO#.','.#OOoooddddoOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F1 — cloak fold drifts right
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOoodddoOO#..','..#OoodddoooO#..',
+      '..#OoodddoooO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // neutral (== F0)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OowoooowoO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F2 — eye blink (b → s)
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odsssssss..','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // fold shifts left + brief blink (single eye, suggests breathing rhythm)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OoeoooooooO#.','.#OOooooooooOO#.','.#OOoddddoooOO#.',
-      '.#OOoddddoooOO#.','.#OOoddddoooOO#.','.#OOoddddoooOO#.','.#OOoddddoooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F3 — cloak fold drifts left
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OoodddooOO#..','..#OodddoooOO#..',
+      '..#OodddoooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ]
   ]},
 
-  // DASH-IN — 3 frames, runs once. Body leans forward, cloak streams back, legs spread.
+  // DASH-IN — 3 frames, runs once. Body leans forward (toward foe at right),
+  // cloak streams BACK-LEFT, boots in mid-stride.
   dashIn: { fps: 12, loop: false, frames: [
-    [ // F0 — start (≈ idle baseline)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F0 — start, weight loaded on back foot
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','..bbb...bbbb....','..bb......bbb...'
     ],
-    [ // F1 — running stance, cloak hem widens
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOoooooooooO#.',
-      '.#OoooooooooOOo.','..#OoooooooO#...','...bbb...bbbb...','...bb.....bbb...'
+    [ // F1 — mid-stride, cloak hem widens back-left
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '...#OOOoooO.....','..#OOoooooooO#..','.OOoodddooooOO#.','.OoddddoooOOO#..',
+      '.OoddddoooOO#...','.#OoooooooO#....','...b....bbbb....','...........bb...'
     ],
-    [ // F2 — peak dash, cloak fully streaming
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOoooooooooO#.','.#OoooooooooOO#.',
-      'OoOooooooooooOo.','.#OoooooooOO#...','..bbb.....bbbb..','..bb.......bb...'
+    [ // F2 — peak forward lean, cloak fully streaming behind
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '..#OOOoooO......','.OOoooooooO#....','OoodddoooooOOOo.','ooddddoooooOO#..',
+      'oddddoooooOO#...','#OoooooooO#.....','........bbbb....','..........bbb...'
     ]
   ]},
 
-  // ATTACK-PIERCE — 4 frames, runs once. Body coils → lunges → recoils.
+  // ATTACK-PIERCE — 4 frames, runs once. Body coils → lunges right → recoils.
   attackPierce: { fps: 10, loop: false, frames: [
-    [ // F0 — wind-up (cloak coiled, fold widens)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOoddddddoOO#.',
-      '.#OOoddddddoOO#.','.#OOoddddddoOO#.','.#OOoddddddoOO#.','.#OOoddddddoOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F0 — wind-up (head pulled back slightly, eye narrowed)
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odsbssss...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOodddooO#..','..#OOoddddooO#..','..#OOoddddooO#..',
+      '..#OOoddddooO#..','...#OOOoooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // F1 — lunge starts (cloak compressed forward, eye-glint visible)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOdeddddOO#.','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooooooooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooooooooOO#.',
-      '.#OOooooooooOO#.','..#OoooooooO#...','...bbbb..bbb....','...bbb....bb....'
+    [ // F1 — lunge starts (head pushed forward-right, ember eye glint)
+      '................','.......####.....','......#OOOOd#...','.....#OOOddss...',
+      '.....#OOdesss...','.....#Odssbsee..','.....#Odsssss...','.....#OOdsss#...',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bb...bbbb....','...b......bbb...'
     ],
-    [ // F2 — peak extension (body fully forward, cloak compressed)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOdeddddOO#.','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooooooooOO#.',
-      '.#OOoooooooOO#..','.#OOooddddooOO#.','.#OOooooooooOO#.','.#OOooooooooOO#.',
-      '..#OoooooooooO#.','..#OoooooooO#...','....bbbb..bbb...','....bbb....bb...'
+    [ // F2 — peak extension (head and torso fully forward)
+      '................','........####....','.......#OOOOd#..','......#OOOddss..',
+      '......#OOdesss..','......#Odssbsee.','......#Odsssss..','......#OOdsss#..',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOoddoooooO#.','..#OoddddooOOO..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...b....bbbbb...','..........bbb...'
     ],
     [ // F3 — recoil (returning to idle)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ]
   ]},
 
-  // ATTACK-SLASH — 4 frames, runs once. Body twists right → through center → left → recoil.
+  // ATTACK-SLASH — 4 frames, runs once. Arm sweeps from upper-back through to
+  // forward-right (the weapon arc itself is drawn by the cutscene weapon-trail).
   attackSlash: { fps: 8, loop: false, frames: [
-    [ // F0 — wind-up, body twisted right (cloak folds right)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOdeddddOO#.','..#OooooooooO#..','.#OoOoooooooOO#.','.#OOooodddddOO#.',
-      '.#OOooodddddOO#.','.#OOooodddddOO#.','.#OOoooddddoOO#.','.#OOoooddddoOO#.',
-      '.#OOooooooooOO#.','..#OoooooooO#...','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F0 — wind-up, body twisted back-left (cloak puffs left)
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '...OOOoooooO....','..OOOoooooooO#..','.OOoodddooooO#..','.Ooodddooooo#...',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // F1 — mid-swing through center
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOdeddddOO#.','..#OooooooooO#..','.#OOoooooooOOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F1 — mid-swing through center (eye glint flashes)
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssesse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // F2 — follow-through, body twisted left (cloak folds left)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOdeddddOO#.','..#OooooooooO#..','.#OOOoooooooOo#.','.#OOdddddoooOO#.',
-      '.#OOdddddoooOO#.','.#OOdddddoooOO#.','.#OOoddddoooOO#.','.#OOoddddoooOO#.',
-      '.#OOooooooooOO#.','..#OoooooooO#...','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F2 — follow-through, body twisted forward-right
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooOOO..','...#OOoooooOOO..','..#OOodddoooOOO.','..#OoddddooOOO..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
     [ // F3 — recovery
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ]
   ]},
 
-  // ATTACK-SMASH — 4 frames, runs once. Arm raises high → holds → strikes down → impact crouch.
+  // ATTACK-SMASH — 4 frames, runs once. Arm raises high above the hood →
+  // holds → strikes down → impact crouch.
   attackSmash: { fps: 6.67, loop: false, frames: [
-    [ // F0 — wind-up high (small O column above hood = arm raised)
-      '.......OO.......','.......OO.......','.....######.....','....#OOOOOO#....',
-      '...#OOdeddddOO#.','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F0 — arm raised above head (extra O column above hood)
+      '........OO......','........OO......','......####......','.....#OOOOd#....',
+      '....#OOOddss....','....#OOdsssh....','....#Odssbsse...','....#Odsssss....',
+      '....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // F1 — hold wind-up (eye-glint, slight tension)
-      '.......OO.......','.......OO.......','.....######.....','....#OOOOOO#....',
-      '...#OOdeddddOO#.','..#OooooooooO#..','.#OOooooooooOO#.','.#OOoddddddoOO#.',
-      '.#OOoddddddoOO#.','.#OOoddddddoOO#.','.#OOoddddddoOO#.','.#OOoddddddoOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F1 — held high (ember glint, body coiled)
+      '........OO......','........OO......','......####......','.....#OOOOd#....',
+      '....#OOOddss....','....#OOdsesh....','....#Odssbsse...','....#Odsssss....',
+      '....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...','..#OOoddddooO#..',
+      '..#OOoddddooO#..','...#OOOoooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // F2 — striking down (body crouched, cloak compressed)
-      '................','................','................','.....######.....',
-      '....#OOOOOO#....','...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooooooooOO#.',
-      '..#OooooooooO#..','...#OOOOOOOO#...','...bbbb..bbbb...','...bbb....bbb...'
+    [ // F2 — strike down (body crouched, head lowered)
+      '................','................','................','......####......',
+      '.....#OOOOd#....','....#OOOddss....','....#OOdsssh....','....#Odssbsse...',
+      '....#Odsssss....','....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...',
+      '..#OOoddddooO#..','...#OOOoooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // F3 — impact / recovery (body returning, last frame ≈ idle)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F3 — impact / recovery (≈ idle)
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ]
   ]},
 
-  // ATTACK-BARE — 3 frames, runs once. Right punch → left punch → reset.
+  // ATTACK-BARE — 3 frames, runs once. Right-jab forward → return → reset.
+  // Forward arm reads as cloak/shoulder cells extending right past the torso.
   attackBare: { fps: 8, loop: false, frames: [
-    [ // F0 — right punch (right shoulder forward, left side cloak compressed)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOdeddddOO#.','..#OooooooooO#..','.#OOoooooooOOO#.','.#OOooddddoOOO#.',
-      '.#OOooddddoOOO#.','.#OOooddddoOOO#.','.#OOooddddoOOO#.','.#OOooooooooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F0 — jab forward (extra cloak cells right of the body = arm extended)
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssesse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooOOO..','...#OOoooooOOO..','..#OOodddoooOOO.','..#OoddddooOOOO.',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // F1 — left punch (mirror)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOdeddddOO#.','..#OooooooooO#..','.#OOOoooooooOO#.','.#OOOoddddooOO#.',
-      '.#OOOoddddooOO#.','.#OOOoddddooOO#.','.#OOOoddddooOO#.','.#OOooooooooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F1 — return / chamber arm
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOOooooO#...','..#OOOodddooO#..','..#OOOoddddoO#..',
+      '..#OOOoddddoO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // F2 — reset
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F2 — reset (≈ idle)
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ]
   ]},
 
-  // DRINK — 3 frames, runs once. Bottle raises → quaff → lower.
+  // DRINK — 3 frames, runs once. Bottle ('w' pixel) raised in front of the
+  // face (right side, where the profile is exposed) → quaff → lower.
   drink: { fps: 5, loop: false, frames: [
-    [ // F0 — bottle raised at hood-side (single 'w' pixel)
-      '................','........w.......','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F0 — bottle raised
+      '............w...','............w...','......####......','.....#OOOOd#....',
+      '....#OOOddss....','....#OOdsssh....','....#Odssbsww...','....#Odsssww....',
+      '....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
-    [ // F1 — quaff (head tilt suggested by hood asymmetry, bottle still up)
-      '........w.......','........w.......','.....######.....','....#OOOOOO#....',
-      '...#OOdedddOOO..','..#OooooooooOo..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F1 — quaff (head tilted slightly back)
+      '............w...','............w...','......####......','.....#OOOOdd....',
+      '....#OOOddsd....','....#OOdsssh....','....#Odssbsww...','....#Odsssww....',
+      '....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ],
     [ // F2 — lower (back to baseline)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+      '................','................','......####......','.....#OOOOd#....',
+      '....#OOOddss....','....#OOdsssh....','....#Odssbsse...','....#Odsssss....',
+      '....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ]
   ]},
 
-  // EQUIP-PICKUP — 3 frames, runs once. Crouch → grab → rise.
+  // EQUIP-PICKUP — 3 frames, runs once. Crouch → grab → rise. Figure shifts
+  // down ~2 rows when crouching.
   equipPickup: { fps: 7.5, loop: false, frames: [
-    [ // F0 — crouch (figure compressed, hood lowered)
-      '................','................','................','................',
-      '.....######.....','....#OOOOOO#....','...#OOddddOO#...','..#OooooooooO#..',
-      '.#OOooooooooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooooooooOO#.',
-      '..#OoooooooO#...','...#OOOOOOOO#...','...bbbb..bbbb...','...bbb....bbb...'
+    [ // F0 — crouch
+      '................','................','................','......####......',
+      '.....#OOOOd#....','....#OOOddss....','....#OOdsssh....','....#Odssbsse...',
+      '....#Odsssss....','....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...',
+      '..#OOodddoooO#..','...#OoooooO#....','...bbb..bbbb....','....bb...bbb....'
     ],
-    [ // F1 — fully crouched, grabbing (small w glint at hand)
+    [ // F1 — fully crouched, hand on ground (w glint)
       '................','................','................','................',
-      '.....######.....','....#OOOOOO#....','...#OOddddOO#...','..#OooooooooO#..',
-      '.#OOooooooooOO#.','.#OOooddddooOO#.','.#OOoooooooooO#.','.#OoooooooooOO#.',
-      '....wwooooowww..','....bbbb.bbbb...','....bbb...bbb...','....bb.....bb...'
+      '......####......','.....#OOOOd#....','....#OOOddss....','....#OOdsssh....',
+      '....#Odssbsse...','....#Odsssss....','....#OOdsss#....','....#OOOoooO....',
+      '...#OOoooooOww..','...#OOOoooOO#...','...bbb..bbbb....','....bb...bbb....'
     ],
-    [ // F2 — rising (back to standing, ≈ idle)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOddddOO#...','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F2 — rising (≈ idle)
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ]
   ]},
 
-  // HURT — 2 frames, runs once. Recoil with red-glint in hood, then recovery.
+  // HURT — 2 frames, runs once. Recoil LEFT (foe hit landed from the right);
+  // ember-glint at the eye = visible flash. Then recovery.
   hurt: { fps: 8, loop: false, frames: [
-    [ // F0 — recoiled (figure shifted left, ember-glint = visible eye flash)
-      '................','................','....######......','...#OOOOOO#.....',
-      '..#OOdeddddOO#..','.#OooooooooO#...','#OOooooooooOO#..','#OOooddddooOO#..',
-      '#OOooddddooOO#..','#OOooddddooOO#..','#OOooddddooOO#..','#OOooooooooOO#..',
-      '.#OoooooooooO#..','..#OoooooooO#...','...bbb..bbb.....','...bb....bb.....'
+    [ // F0 — figure shifted LEFT 2 cols, ember-glint at eye
+      '................','....####........','...#OOOOd#......','..#OOOddss......',
+      '..#OOdsssh......','..#Odssesse.....','..#Odsssss......','..#OOdsss#......',
+      '..#OOOoooO......','.#OOoooooO#.....','#OOodddoooO#....','#OoddddooOO#....',
+      '#OoddddooOO#....','#OOoooooooO#....','.bbb..bbbb......','.bb.....bbb.....'
     ],
-    [ // F1 — recovery (≈ idle but with lingering glint)
-      '................','................','.....######.....','....#OOOOOO#....',
-      '...#OOdeddddOO#.','..#OooooooooO#..','.#OOooooooooOO#.','.#OOooddddooOO#.',
-      '.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.','.#OOooddddooOO#.',
-      '.#OOooooooooOO#.','..#OooooooooO#..','...bbbb..bbbb...','..bbbbb..bbbbb..'
+    [ // F1 — recovery (≈ idle, lingering ember-glint)
+      '................','......####......','.....#OOOOd#....','....#OOOddss....',
+      '....#OOdsssh....','....#Odssesse...','....#Odsssss....','....#OOdsss#....',
+      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
+      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
     ]
   ]}
 };

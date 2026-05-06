@@ -1411,9 +1411,11 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
 .archway::before { left: 0; }
 .archway::after  { right: 0; }
 
-/* Pokemon-style layout: cards (foes) in the upper-middle of the arena,
-   player (over-shoulder) at the bottom-center. Cards lift toward player on
-   click, player rises to meet them — they clash in the middle. */
+/* Pokemon-style layout: cards (foes) sit in the upper-middle of the arena,
+   trainer at bottom-left. Cards scale + drift toward the upper-right during
+   their cutscene; the trainer dashes diagonally up-right toward the foe.
+   Bottom: 30% (was 42%) gives the active card headroom to scale without
+   clipping against the arena's top edge. */
 .room-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1422,28 +1424,31 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
   max-width: 880px;
   perspective: 1200px;
   position: absolute;
-  bottom: 42%;
+  bottom: 30%;
   left: 50%;
   transform: translateX(calc(-50% - 100px));
   z-index: 5;
 }
 
-/* Action log moved to bottom-left so the player at bottom-center doesn't
-   cover it. Stacks newest-on-top by reversing flex-direction. */
+/* Action log lives at bottom-CENTER as a Pokemon-style dialog band — sits to
+   the right of the trainer (bottom-left) and below the foe-cards. Stacks
+   newest-on-top via column-reverse. */
 .action-log {
   position: absolute;
-  bottom: 80px;       /* above the peek-strip which sits at bottom: 22px */
-  left: 22px;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(calc(-50% - 60px));   /* match HP-panel offset bias */
   display: flex;
   flex-direction: column-reverse;
   gap: 4px;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
   font-family: var(--smallcap);
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.2em;
   color: var(--bone-mid);
   pointer-events: none;
-  max-width: 38%;
+  max-width: 56%;
   z-index: 6;
 }
 .log-line {
@@ -1751,16 +1756,15 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
 }
 
 /* =============================================================
-   PLAYER LAYER — cloaked wanderer, BOTTOM-CENTER, prominent
-   (Pokemon-style over-shoulder). Cards live above at bottom: 42%.
+   PLAYER LAYER — cloaked wanderer, BOTTOM-LEFT (Pokemon Gen-1 trainer
+   position). Active card lifts to TOP-RIGHT during the cutscene so the
+   trainer / foe staging mirrors the classic battle frame.
    ============================================================= */
 .player-layer {
   position: absolute;
-  bottom: 4%;
-  left: 50%;
-  /* mirror the back-door's offset so the player lines up over the play area,
-     which is shifted left by the HP-panel padding on the right of .dungeon-arena */
-  transform: translateX(calc(-50% - 100px));
+  bottom: 6%;
+  left: 6%;
+  transform: translateX(0);
   width: 200px;
   height: 200px;
   pointer-events: none;
@@ -1781,19 +1785,20 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
   50%      { transform: translateY(-3px) scaleY(0.99); }
 }
 
-/* Equipped weapon mounted on the player's back — visible at all times when
-   state.weapon is set. Positioned diagonally above the right shoulder so the
-   weapon shape sticks up over the hood. The cutscene's animated weapon-trail
-   is a separate, transient element; this one is the persistent strap-on. */
+/* Equipped weapon strapped diagonally on the trainer's back — visible at all
+   times when state.weapon is set. Now that the player faces RIGHT (side
+   profile), the back is on the LEFT side of the sprite, so the weapon mounts
+   from upper-left (hilt over the shoulder) angling down. Sized big (~58%) so
+   the weapon reads clearly at a glance instead of disappearing into the cloak. */
 .player-weapon {
   position: absolute;
-  top: -4%;
-  right: 6%;
-  width: 36%;
-  height: 36%;
+  top: 4%;
+  left: -4%;
+  width: 58%;
+  height: 58%;
   pointer-events: none;
   z-index: 1; /* behind player-bob so the lower portion reads as "behind" the body */
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.85));
   transition: opacity 0.4s ease-out;
   /* Custom keyframe that preserves the diagonal rotation through the idle bob. */
   animation: player-weapon-bob 1.6s ease-in-out infinite;
@@ -1802,30 +1807,32 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
 .player-weapon.empty { opacity: 0; }
 .player-weapon svg { width: 100%; height: 100%; display: block; }
 @keyframes player-weapon-bob {
-  0%, 100% { transform: translateY(0)    rotate(-32deg); }
-  50%      { transform: translateY(-3px) rotate(-32deg); }
+  0%, 100% { transform: translateY(0)    rotate(48deg); }
+  50%      { transform: translateY(-3px) rotate(48deg); }
 }
 
 /* =============================================================
    CUTSCENE — Pokemon-style encounter staging
    ============================================================= */
 
-/* Target card descends + scales toward the player. Per-slot horizontal offset
-   converges all four card positions toward the player at center-bottom — the
-   clash happens in the middle of the screen. Other cards fade hard. */
+/* Target card scales up in place + drifts slightly toward the upper-right "foe
+   pedestal" so the active monster reads as the right-side opponent in a
+   Pokemon-style staging. Translate values are intentionally small — large
+   negative-Y moves clip the card off the top of the arena (cards are already
+   at bottom: 30% so headroom is limited). */
 .card-slot.cutscene-target {
   z-index: 50;
 }
 .card-slot.cutscene-target .card {
-  transform: translateY(110px) scale(1.7);
+  transform: translate(0, -10px) scale(1.35);
   transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1.08);
-  filter: drop-shadow(0 22px 36px rgba(0,0,0,0.95)) brightness(1.08);
+  filter: drop-shadow(0 22px 36px rgba(0,0,0,0.95)) brightness(1.1);
 }
-/* Diagonal convergence — outer slots translate horizontally toward center. */
-.card-slot:nth-child(1).cutscene-target .card { transform: translate(140px, 110px) scale(1.7); }
-.card-slot:nth-child(2).cutscene-target .card { transform: translate(46px, 110px)  scale(1.7); }
-.card-slot:nth-child(3).cutscene-target .card { transform: translate(-46px, 110px) scale(1.7); }
-.card-slot:nth-child(4).cutscene-target .card { transform: translate(-140px, 110px) scale(1.7); }
+/* Slots converge slightly to the right (toward the foe-side of the arena). */
+.card-slot:nth-child(1).cutscene-target .card { transform: translate(110px, -10px) scale(1.35); }
+.card-slot:nth-child(2).cutscene-target .card { transform: translate(60px,  -10px) scale(1.35); }
+.card-slot:nth-child(3).cutscene-target .card { transform: translate(20px,  -10px) scale(1.35); }
+.card-slot:nth-child(4).cutscene-target .card { transform: translate(-30px, -10px) scale(1.35); }
 
 .card-slot.cutscene-dim .card {
   opacity: 0.10;
@@ -1833,9 +1840,9 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
   transition: opacity 0.3s ease-out, filter 0.3s ease-out;
 }
 
-/* Player rises UP toward the descending card during cutscene — they clash mid-screen. */
+/* Trainer dashes diagonally up-right toward the foe at the upper-right pedestal. */
 body.cutscene-active .player-layer {
-  transform: translateX(calc(-50% - 100px)) translateY(-70px) scale(1.18);
+  transform: translate(80px, -40px) scale(1.18);
   z-index: 12;
 }
 
@@ -2488,10 +2495,11 @@ body.cutscene-active .player-layer {
    ============================================================= */
 .peek-strip {
   position: absolute;
-  bottom: 22px;
-  left: 22px;
-  /* moved to bottom-LEFT corner so it doesn't collide with the player layer
-     at bottom-center (was bottom: 50px center → covered by 240px player). */
+  top: 18px;
+  right: 18px;
+  /* Pinned TOP-RIGHT — the trainer holds the bottom-left now and the action
+     log dialog band sits at bottom-center, so peek-strip moves to the
+     opposite corner where it won't collide with either. */
   display: flex;
   gap: 6px;
   padding: 8px 14px;
@@ -2546,6 +2554,20 @@ body.cutscene-active .player-layer {
      is awkward when the same tap also resolves the card. */
   .tooltip { display: none !important; }
 
+  /* Menu / sub-screens scroll on mobile — without this, content taller than the
+     viewport (Difficulty's 4 stacked cards, long Tutorial pages) gets clipped at
+     top AND bottom by `align-items: center` + body `overflow: hidden`, leaving
+     the back-corner button and form-row Confirm button literally unreachable. */
+  #screen-difficulty,
+  #screen-tutorial,
+  #screen-options,
+  #screen-credits {
+    align-items: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px 0;
+  }
+
   #screen-game {
     padding: 0;
     flex-direction: column;
@@ -2553,9 +2575,16 @@ body.cutscene-active .player-layer {
     height: 100dvh; /* dynamic viewport — accounts for mobile browser chrome */
     gap: 0;
   }
+  /* Override desktop's `display: grid; grid-template-columns: auto 1fr auto`
+     — that 3-column grid forced the controls-block off the right edge of the
+     viewport on phones (pause-btn unreachable). Flex with wrap+space-between
+     lets the row break naturally so every button stays on-screen. */
   .hud {
-    flex-shrink: 0;
+    display: flex;
     flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
     padding: 6px 8px;
     gap: 8px;
     background: linear-gradient(180deg, rgba(20,12,8,0.95), rgba(20,12,8,0.7));
@@ -2593,24 +2622,24 @@ body.cutscene-active .player-layer {
   }
   .card-slot { aspect-ratio: 5/7; }
 
-  /* Player layer: below the cards in the lower portion of the arena.
-     Center horizontally without the HP-panel offset (panel is stacked below). */
+  /* Player layer: pinned bottom-LEFT of the arena (Pokemon trainer position). */
   .player-layer {
     width: 130px;
     height: 130px;
-    bottom: 8px;
-    transform: translateX(-50%);
+    bottom: 6px;
+    left: 4px;
+    transform: translateX(0);
   }
   body.cutscene-active .player-layer {
-    transform: translateX(-50%) translateY(-40px) scale(1.15);
+    transform: translate(20px, -30px) scale(1.15);
   }
 
-  /* Cutscene staging — smaller convergence values for the smaller screen. */
-  .card-slot.cutscene-target .card { transform: translateY(50px) scale(1.4); }
-  .card-slot:nth-child(1).cutscene-target .card { transform: translate(60px, 50px)  scale(1.4); }
-  .card-slot:nth-child(2).cutscene-target .card { transform: translate(20px, 50px)  scale(1.4); }
-  .card-slot:nth-child(3).cutscene-target .card { transform: translate(-20px, 50px) scale(1.4); }
-  .card-slot:nth-child(4).cutscene-target .card { transform: translate(-60px, 50px) scale(1.4); }
+  /* Cutscene staging — target lifts up-right toward the "foe pedestal". */
+  .card-slot.cutscene-target .card { transform: translate(0, -80px) scale(1.4); }
+  .card-slot:nth-child(1).cutscene-target .card { transform: translate(110px, -80px) scale(1.4); }
+  .card-slot:nth-child(2).cutscene-target .card { transform: translate(60px,  -80px) scale(1.4); }
+  .card-slot:nth-child(3).cutscene-target .card { transform: translate(20px,  -80px) scale(1.4); }
+  .card-slot:nth-child(4).cutscene-target .card { transform: translate(-20px, -80px) scale(1.4); }
 
   /* Stage banner: small, top of arena. */
   .stage-banner {
@@ -2643,19 +2672,22 @@ body.cutscene-active .player-layer {
   .hp-rail-label { display: none; }
   .d20-aura { display: none; }
 
-  /* Action log: compact, bottom-left of arena, above peek strip. */
+  /* Action log: bottom-center dialog band, sits to the right of the trainer. */
   .action-log {
     font-size: 10px;
-    max-width: 50%;
-    bottom: 10px;
-    left: 8px;
+    max-width: 65%;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
     letter-spacing: 0.12em;
+    text-align: center;
   }
   .log-line { padding: 2px 8px; }
   .peek-strip {
-    bottom: 8px;
+    top: 8px;
     right: 8px;
     left: auto;
+    bottom: auto;
     font-size: 9px;
     padding: 4px 8px;
   }
@@ -2724,5 +2756,5 @@ body.cutscene-active .player-layer {
     max-width: 700px;
     grid-template-columns: repeat(4, 1fr);
   }
-  .player-layer { width: 90px; height: 90px; bottom: 4px; transform: translateX(-50%); }
+  .player-layer { width: 90px; height: 90px; bottom: 4px; left: 4px; transform: translateX(0); }
 }
