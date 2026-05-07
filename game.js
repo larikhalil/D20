@@ -317,6 +317,29 @@ const Audio = (() => {
         );
         setTimeout(() => chord([523.25, 659.25, 783.99, 1046.5], 0.8, 'triangle', 0.2), 700);
         break;
+      // v0.6.0 — new SFX for the door cinematic + corridor + treasure
+      case 'door-open':
+        // Heavy iron creak — low filtered noise + descending sub-tone
+        noiseBurst(0.45, 0.32, 600, 'lowpass');
+        tone(72, 0.5, 'sawtooth', 0.18, 0.01, 0.3);
+        setTimeout(() => tone(48, 0.4, 'sawtooth', 0.14), 180);
+        break;
+      case 'door-close':
+        // Slammed thud + reverb tail
+        noiseBurst(0.18, 0.45, 200, 'lowpass');
+        tone(64, 0.18, 'sawtooth', 0.32);
+        setTimeout(() => noiseBurst(0.32, 0.2, 400, 'lowpass'), 90);
+        break;
+      case 'footstep':
+        // Soft tap on stone — high-passed click
+        noiseBurst(0.04, 0.18, 8000, 'highpass');
+        tone(120, 0.04, 'square', 0.06);
+        break;
+      case 'treasure':
+        // Sparkly chord — bright triangle stack
+        chord([783.99, 987.77, 1174.66, 1567.98], 0.5, 'triangle', 0.16);
+        setTimeout(() => chord([1046.5, 1318.51, 1567.98], 0.6, 'triangle', 0.14), 280);
+        break;
     }
   }
 
@@ -461,6 +484,11 @@ function saveData(data) {
 // -----------------------------------------------------------
 function showScreen(name) {
   qsa('.screen').forEach(el => el.classList.toggle('active', el.dataset.screen === name));
+  // Clean up in-game body classes when navigating away from the game so the
+  // grey-crypt palette (scoped on body.mode-*) doesn't bleed into menus.
+  if (name !== 'game') {
+    document.body.classList.remove('mode-quick', 'mode-adventure');
+  }
 }
 function showOverlay(name) { $('overlay-' + name).classList.add('active'); }
 function hideOverlay(name) { $('overlay-' + name).classList.remove('active'); }
@@ -551,253 +579,196 @@ function pixelSpriteSheet(frames, palette, sizePct, opts = {}) {
 }
 
 // =============================================================
-// PLAYER SPRITE — cloaked wanderer (SIDE-PROFILE facing right, 16x16)
+// PLAYER SPRITE — KNIGHT (back-view, 16x16, v0.5.6 redraw)
 // =============================================================
-// Pokemon Gen-1 staging: trainer at bottom-left of the arena facing the foe
-// at upper-right. The sprite is drawn as a side profile so the player's FACE
-// is visible — hood pulled forward over the brow, leaving the cheek, eye and
-// jaw line exposed on the right (foe-facing) side.
+// Pokemon Gen-1 trainer staging — silver-armored knight viewed from behind,
+// helmet + cuirass + greaves silhouette, optional cape draped down the back.
+// Idle is a SINGLE static frame (no breathing sway); the figure only animates
+// during action poses (drink, equip, attack, dash, hurt).
 const PLAYER_PALETTE = {
-  '#': '#0a0604',  // outline (kept very dark)
-  'O': '#a06030',  // cloak highlight (warm tan)
-  'o': '#704a26',  // cloak mid (warm brown)
-  'd': '#3a1f10',  // cloak shadow / hood interior
-  'b': '#1a0a04',  // boot / eye dot (very dark)
-  'h': '#3a2014',  // hair (dark warm brown — sideburn at the temple)
-  's': '#e8c0a0',  // skin (warm pale — face profile)
-  'e': '#ff8030',  // ember-glint (vivid orange — eye flash in attack/hurt)
-  'w': '#f4ebd0',  // bone-pale (weapon flash highlight)
-  'y': '#c9a857'   // gold accent (used sparingly)
+  '#': '#0a0608',  // outline (very dark cool)
+  'b': '#c0c8d0',  // armor bright (silver highlight)
+  'd': '#4a5058',  // armor shadow (mid-grey)
+  'D': '#2a2e36',  // armor deep shadow (visor interior, joint creases)
+  'y': '#c9a857',  // gold trim (belt, helmet rim)
+  'e': '#ffd040',  // visor glow (warm gold inside the eye slit)
+  'r': '#c52828',  // accent red (plume, hurt-flash)
+  'c': '#1a3a78',  // cape dark (royal blue)
+  'C': '#4a7ab0',  // cape highlight
+  'k': '#0a0a10',  // boot/leather dark
+  's': '#e8c0a0',  // skin (visible at exposed hands during equip/drink)
+  'w': '#f4ebd0'   // pale highlight (weapon flash, drink bottle)
 };
 
-// All frames 16x16, side-profile facing RIGHT. Columns 0-7 are the back of the
-// figure (hood crown, cloak drape); columns 8-12 hold the visible face profile
-// (forehead skin, eye, glint); rows 14-15 are the boots — back foot left,
-// front foot right. Weapons are composited separately (see Cutscene module).
+// All frames 16x16, back-view (player faces away from camera, toward the foe).
+// Columns 5–10 = body axis. Rows 2–6 = helmet, 7–8 = gorget+pauldrons, 9–12 =
+// cuirass+belt, 13–14 = greaves, 15 = boots. Weapons + the strapped weapon
+// are composited separately by the Cutscene module — these sprites only show
+// body posture, not the wielded weapon.
 const PLAYER_PX = {
-  // IDLE — 4-frame loop. Side-profile (facing right). Hood crown wraps the
-  // back-left of the head; the face profile (forehead skin → eye → cheek → jaw)
-  // emerges on the right. Eye dot 'b' at col 9 row 5; ember glint 'e' just past
-  // it. Cloak fold sways gently across the four frames.
-  idle: { fps: 4, loop: true, frames: [
-    [ // F0 — neutral (eye open, cloak fold centered)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
-    ],
-    [ // F1 — cloak fold drifts right
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOoodddoOO#..','..#OoodddoooO#..',
-      '..#OoodddoooO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
-    ],
-    [ // F2 — eye blink (b → s)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odsssssss..','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
-    ],
-    [ // F3 — cloak fold drifts left
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OoodddooOO#..','..#OodddoooOO#..',
-      '..#OodddoooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+  // IDLE — single static frame (loop:true with one frame = no animation;
+  // user explicitly asked for a non-animated idle).
+  idle: { fps: 1, loop: true, frames: [
+    [
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ]
   ]},
 
-  // DASH-IN — 3 frames, runs once. Body leans forward (toward foe at right),
-  // cloak streams BACK-LEFT, boots in mid-stride.
-  dashIn: { fps: 12, loop: false, frames: [
-    [ // F0 — start, weight loaded on back foot
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','..bbb...bbbb....','..bb......bbb...'
+  // DASH-IN — 2 frames, runs once. Knight strides forward (toward foe).
+  // Body posture identical to idle; only the boots change to suggest stride.
+  dashIn: { fps: 8, loop: false, frames: [
+    [ // F0 — left foot forward
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bb##bb#....','...##....##.....'
     ],
-    [ // F1 — mid-stride, cloak hem widens back-left
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '...#OOOoooO.....','..#OOoooooooO#..','.OOoodddooooOO#.','.OoddddoooOOO#..',
-      '.OoddddoooOO#...','.#OoooooooO#....','...b....bbbb....','...........bb...'
-    ],
-    [ // F2 — peak forward lean, cloak fully streaming behind
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '..#OOOoooO......','.OOoooooooO#....','OoodddoooooOOOo.','ooddddoooooOO#..',
-      'oddddoooooOO#...','#OoooooooO#.....','........bbbb....','..........bbb...'
+    [ // F1 — right foot forward
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...#bb##bb##....','...##....##.....'
     ]
   ]},
 
-  // ATTACK-PIERCE — 4 frames, runs once. Body coils → lunges right → recoils.
-  attackPierce: { fps: 10, loop: false, frames: [
-    [ // F0 — wind-up (head pulled back slightly, eye narrowed)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odsbssss...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOodddooO#..','..#OOoddddooO#..','..#OOoddddooO#..',
-      '..#OOoddddooO#..','...#OOOoooooO#..','...bbb..bbbb....','...bb.....bbb...'
+  // ATTACK-PIERCE — 3 frames. Body coils → thrusts forward → recoils.
+  // The forward thrust reads as visor flare (yellow eye-slit fully lit) +
+  // body cells extending to the right (the arm/shoulder reaching past).
+  attackPierce: { fps: 9, loop: false, frames: [
+    [ // F0 — wind-up (slight back-pull, visor narrows)
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDDeDDb#...','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ],
-    [ // F1 — lunge starts (head pushed forward-right, ember eye glint)
-      '................','.......####.....','......#OOOOd#...','.....#OOOddss...',
-      '.....#OOdesss...','.....#Odssbsee..','.....#Odsssss...','.....#OOdsss#...',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bb...bbbb....','...b......bbb...'
+    [ // F1 — peak thrust (visor blazes, shoulder extends right)
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#beeeeb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb###..','..#bbddyyddbbbb.','..#bdddddddbbbb.','..#bydddddybbb#.',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ],
-    [ // F2 — peak extension (head and torso fully forward)
-      '................','........####....','.......#OOOOd#..','......#OOOddss..',
-      '......#OOdesss..','......#Odssbsee.','......#Odsssss..','......#OOdsss#..',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOoddoooooO#.','..#OoddddooOOO..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...b....bbbbb...','..........bbb...'
-    ],
-    [ // F3 — recoil (returning to idle)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+    [ // F2 — recoil (back to idle posture, glint lingers)
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ]
   ]},
 
-  // ATTACK-SLASH — 4 frames, runs once. Arm sweeps from upper-back through to
-  // forward-right (the weapon arc itself is drawn by the cutscene weapon-trail).
+  // ATTACK-SLASH — 3 frames. Sweeping arc visualised by torso lean — back-left
+  // wind-up, then through center, then forward-right follow-through.
   attackSlash: { fps: 8, loop: false, frames: [
-    [ // F0 — wind-up, body twisted back-left (cloak puffs left)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '...OOOoooooO....','..OOOoooooooO#..','.OOoodddooooO#..','.Ooodddooooo#...',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+    [ // F0 — body twisted back-left (cells extend left of torso)
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '..###bbbbbb##...','.bbbbddyyddbb#..','.bbbdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ],
-    [ // F1 — mid-swing through center (eye glint flashes)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssesse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+    [ // F1 — through center (visor flares)
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#beeeeb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ],
-    [ // F2 — follow-through, body twisted forward-right
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooOOO..','...#OOoooooOOO..','..#OOodddoooOOO.','..#OoddddooOOO..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
-    ],
-    [ // F3 — recovery
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+    [ // F2 — follow-through forward-right (cells extend right of torso)
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb###..','..#bbddyyddbbbb.','..#bdddddddbbbb.','..#bydddddybbbb.',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ]
   ]},
 
-  // ATTACK-SMASH — 4 frames, runs once. Arm raises high above the hood →
-  // holds → strikes down → impact crouch.
-  attackSmash: { fps: 6.67, loop: false, frames: [
-    [ // F0 — arm raised above head (extra O column above hood)
-      '........OO......','........OO......','......####......','.....#OOOOd#....',
-      '....#OOOddss....','....#OOdsssh....','....#Odssbsse...','....#Odsssss....',
-      '....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+  // ATTACK-SMASH — 3 frames. Arms raised high above the helmet → strike down.
+  // The 'b' cells above the helmet are the lifted weapon shaft (composited
+  // weapon-trail SVG continues this above the sprite).
+  attackSmash: { fps: 7, loop: false, frames: [
+    [ // F0 — arms raised, weapon held high
+      '.......bb.......','.......bb.......','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ],
-    [ // F1 — held high (ember glint, body coiled)
-      '........OO......','........OO......','......####......','.....#OOOOd#....',
-      '....#OOOddss....','....#OOdsesh....','....#Odssbsse...','....#Odsssss....',
-      '....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...','..#OOoddddooO#..',
-      '..#OOoddddooO#..','...#OOOoooooO#..','...bbb..bbbb....','...bb.....bbb...'
+    [ // F1 — held high (visor blazes, knees bend slightly)
+      '.......bb.......','.......bb.......','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#beeeeb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...##bddbb##....','...##bbbb##.....','...##....##.....'
     ],
-    [ // F2 — strike down (body crouched, head lowered)
+    [ // F2 — strike down (figure crouched, head lowered, arms swung down)
       '................','................','................','......####......',
-      '.....#OOOOd#....','....#OOOddss....','....#OOdsssh....','....#Odssbsse...',
-      '....#Odsssss....','....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...',
-      '..#OOoddddooO#..','...#OOOoooooO#..','...bbb..bbbb....','...bb.....bbb...'
-    ],
-    [ // F3 — impact / recovery (≈ idle)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+      '.....#bbbb#.....','....#bbDDbb#....','....#beeeeb#....','....#bbDDbb#....',
+      '.....#bbbb#.....','...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ]
   ]},
 
-  // ATTACK-BARE — 3 frames, runs once. Right-jab forward → return → reset.
-  // Forward arm reads as cloak/shoulder cells extending right past the torso.
+  // ATTACK-BARE — 2 frames. Right-jab forward (body cells extend right past
+  // the cuirass = arm) → reset.
   attackBare: { fps: 8, loop: false, frames: [
-    [ // F0 — jab forward (extra cloak cells right of the body = arm extended)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssesse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooOOO..','...#OOoooooOOO..','..#OOodddoooOOO.','..#OoddddooOOOO.',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+    [ // F0 — jab forward
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#beeeeb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb###..','..#bbddyyddbbbb.','..#bdddddddbbbb.','..#bydddddybbb#.',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ],
-    [ // F1 — return / chamber arm
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOOooooO#...','..#OOOodddooO#..','..#OOOoddddoO#..',
-      '..#OOOoddddoO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
-    ],
-    [ // F2 — reset (≈ idle)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+    [ // F1 — reset (≈ idle)
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ]
   ]},
 
-  // DRINK — 3 frames, runs once. Bottle ('w' pixel) raised in front of the
-  // face (right side, where the profile is exposed) → quaff → lower.
+  // DRINK — 2 frames. Bottle ('w' = pale liquid) raised toward the visor.
+  // The visor stays open (eye glow continues) so the player reads "drinking".
   drink: { fps: 5, loop: false, frames: [
     [ // F0 — bottle raised
-      '............w...','............w...','......####......','.....#OOOOd#....',
-      '....#OOOddss....','....#OOdsssh....','....#Odssbsww...','....#Odsssww....',
-      '....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+      '................','........www.....','......####www...','.....#bbbb#ww...',
+      '....#bbDDbbww...','....#bDeeDbw....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ],
-    [ // F1 — quaff (head tilted slightly back)
-      '............w...','............w...','......####......','.....#OOOOdd....',
-      '....#OOOddsd....','....#OOdsssh....','....#Odssbsww...','....#Odsssww....',
-      '....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
-    ],
-    [ // F2 — lower (back to baseline)
-      '................','................','......####......','.....#OOOOd#....',
-      '....#OOOddss....','....#OOdsssh....','....#Odssbsse...','....#Odsssss....',
-      '....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+    [ // F1 — quaff (head tilted slightly back, bottle inverted)
+      '........www.....','........www.....','......####ww....','.....#bbbb#w....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ]
   ]},
 
-  // EQUIP-PICKUP — 3 frames, runs once. Crouch → grab → rise. Figure shifts
-  // down ~2 rows when crouching.
-  equipPickup: { fps: 7.5, loop: false, frames: [
-    [ // F0 — crouch
+  // EQUIP-PICKUP — 2 frames. Knight crouches → reaches → rises.
+  equipPickup: { fps: 6, loop: false, frames: [
+    [ // F0 — crouch (whole figure shifted DOWN ~3 rows, exposed hand on ground)
       '................','................','................','......####......',
-      '.....#OOOOd#....','....#OOOddss....','....#OOdsssh....','....#Odssbsse...',
-      '....#Odsssss....','....#OOdsss#....','....#OOOoooO....','...#OOoooooO#...',
-      '..#OOodddoooO#..','...#OoooooO#....','...bbb..bbbb....','....bb...bbb....'
+      '.....#bbbb#.....','....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....',
+      '.....#bbbb#.....','...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..',
+      '..#bydddddybb#..','...sbbddbbs.....','..ss##bb##ss....','..s.##..##.s....'
     ],
-    [ // F1 — fully crouched, hand on ground (w glint)
-      '................','................','................','................',
-      '......####......','.....#OOOOd#....','....#OOOddss....','....#OOdsssh....',
-      '....#Odssbsse...','....#Odsssss....','....#OOdsss#....','....#OOOoooO....',
-      '...#OOoooooOww..','...#OOOoooOO#...','...bbb..bbbb....','....bb...bbb....'
-    ],
-    [ // F2 — rising (≈ idle)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssbsse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+    [ // F1 — rising (≈ idle posture)
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ]
   ]},
 
-  // HURT — 2 frames, runs once. Recoil LEFT (foe hit landed from the right);
-  // ember-glint at the eye = visible flash. Then recovery.
+  // HURT — 2 frames. Whole figure shifted LEFT (foe-hit lands from the right),
+  // visor flares red ('r' replaces 'e' for one frame).
   hurt: { fps: 8, loop: false, frames: [
-    [ // F0 — figure shifted LEFT 2 cols, ember-glint at eye
-      '................','....####........','...#OOOOd#......','..#OOOddss......',
-      '..#OOdsssh......','..#Odssesse.....','..#Odsssss......','..#OOdsss#......',
-      '..#OOOoooO......','.#OOoooooO#.....','#OOodddoooO#....','#OoddddooOO#....',
-      '#OoddddooOO#....','#OOoooooooO#....','.bbb..bbbb......','.bb.....bbb.....'
+    [ // F0 — recoiled left + red visor flash
+      '................','................','....####........','...#bbbb#.......',
+      '..#bbDDbb#......','..#bDrrDb#......','..#bbDDbb#......','...#bbbb#.......',
+      '.##bbbbbb##.....','#bbddyyddbb#....','#bdddddddbb#....','#bydddddybb#....',
+      '#bbdddddbbb#....','.#bbddbbb#......','.##bbbb##.......','..##..##........'
     ],
-    [ // F1 — recovery (≈ idle, lingering ember-glint)
-      '................','......####......','.....#OOOOd#....','....#OOOddss....',
-      '....#OOdsssh....','....#Odssesse...','....#Odsssss....','....#OOdsss#....',
-      '....#OOOoooO....','...#OOoooooO#...','..#OOodddoooO#..','..#OoddddooOO#..',
-      '..#OoddddooOO#..','..#OOoooooooO#..','...bbb..bbbb....','...bb.....bbb...'
+    [ // F1 — recovery (idle posture, lingering visor glow)
+      '................','................','......####......','.....#bbbb#.....',
+      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
+      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
+      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
     ]
   ]}
 };
@@ -897,10 +868,17 @@ const CUTSCENE_TIMINGS = {
   equip:  { totalMs: 1100, hitMs: 600, playerAnim: 'equipPickup'  }
 };
 
+// Maps a weapon's card value to its attack archetype (cutscene choreography
+// + sprite animation). v0.5.5 — re-mapped to match the v0.5.3 weapon roster:
+//   2 dagger / 3 short sword       → pierce  (thrust forward)
+//   4 scimitar / 5 long sword /
+//   8 battle axe / 10 great sword  → slash   (sweeping swing)
+//   6 mace / 7 war hammer /
+//   9 great mace                   → smash   (overhead crush)
 function weaponArchetype(weaponValue) {
-  if (weaponValue === 2 || weaponValue === 3) return 'pierce';                 // dagger, short sword
-  if (weaponValue === 4 || weaponValue === 6 || weaponValue === 9) return 'slash';   // hand axe, long sword, greatsword
-  return 'smash'; // 5 mace, 7 war hammer, 8 battle axe, 10 great axe
+  if (weaponValue === 2 || weaponValue === 3) return 'pierce';
+  if (weaponValue === 4 || weaponValue === 5 || weaponValue === 8 || weaponValue === 10) return 'slash';
+  return 'smash';   // 6 mace, 7 war hammer, 9 great mace
 }
 
 const Cutscene = (() => {
@@ -957,17 +935,19 @@ const Cutscene = (() => {
   }
 
   function _bypass(slotIndex, action, callbacks) {
-    // Animations off — preserve legacy card-level flash/shake, then resolve fast.
+    // Quick mode (and anim-off Adventure) — resolve fast so tap-tap-tap
+    // queues smoothly. v0.5.6 cut both timeouts ~3x: impact at 80ms (just
+    // long enough for the flash/shake to register), end at 220ms.
     const a = action.archetype;
     if (a === 'pierce' || a === 'slash' || a === 'smash' || a === 'bare') shakeCard(slotIndex);
     else if (a === 'drink') flashCard(slotIndex, 'flash-heal');
     else if (a === 'equip') flashCard(slotIndex, 'flash-equip');
     setTimeout(() => {
       if (callbacks.onImpact) callbacks.onImpact();
-    }, 240);
+    }, 80);
     setTimeout(() => {
       if (callbacks.onEnd) callbacks.onEnd();
-    }, 820);
+    }, 220);
   }
 
   function play(slotIndex, action, callbacks) {
@@ -992,6 +972,17 @@ const Cutscene = (() => {
     timers = [];
 
     _setStaging(slotIndex, true);
+
+    // v0.6.0 — apply an archetype-specific glow filter on the player-layer
+    // for the duration of the cutscene (CSS .action-* rules above).
+    const playerLayer = qs('.player-layer');
+    if (playerLayer) {
+      playerLayer.classList.remove('action-attack', 'action-drink', 'action-equip');
+      const a = action.archetype;
+      if (a === 'drink')      playerLayer.classList.add('action-drink');
+      else if (a === 'equip') playerLayer.classList.add('action-equip');
+      else                    playerLayer.classList.add('action-attack');
+    }
 
     // Player animation — dash in first, then the archetype attack.
     Player.play('dashIn', () => {
@@ -1063,6 +1054,11 @@ const Cutscene = (() => {
     if (weaponTrailEl) { weaponTrailEl.remove(); weaponTrailEl = null; }
     qsa('.weapon-trail').forEach(el => el.remove());
     qsa('.hit-spark').forEach(el => el.remove());
+    // v0.6.0 — clear the action-glow class so the next idle starts clean.
+    const playerLayer = qs('.player-layer');
+    if (playerLayer) {
+      playerLayer.classList.remove('action-attack', 'action-drink', 'action-equip');
+    }
     // Adventure mode: walk the trainer back to home position. The same CSS
     // transition that animated the walk-out animates the walk-back.
     if (state.mode === 'adventure') returnPlayerHome();
@@ -1806,6 +1802,30 @@ function svgIllustration(card) {
   return '';
 }
 
+// Outcome-prediction badge HTML for any card. Used by both the .card-slot
+// (Quick mode) and .adv-entity (Adventure mode) renders so the prediction
+// tier (safe/low/mid/high/lethal) is identical between modes.
+function outcomeBadgeHtml(card) {
+  const kind = SUIT[card.suit].kind;
+  if (kind === 'monster') {
+    const useWeapon = state.weapon && (state.lastMonsterValue === null || card.value < state.lastMonsterValue);
+    const dmg = useWeapon ? Math.max(0, card.value - state.weapon.value) : card.value;
+    const tier = dmg === 0 ? 'safe' : dmg <= 3 ? 'low' : dmg <= 6 ? 'mid' : dmg <= 10 ? 'high' : 'lethal';
+    return `<div class="outcome-badge dmg ${tier}" title="Damage if you fight this">
+      <span class="badge-icon">⚔</span><span class="badge-num">−${dmg}</span></div>`;
+  }
+  if (kind === 'potion') {
+    const heal = Math.min(card.value, state.maxHp - state.hp);
+    return `<div class="outcome-badge heal" title="HP restored if you drink this">
+      <span class="badge-icon">✚</span><span class="badge-num">+${heal}</span></div>`;
+  }
+  if (kind === 'weapon') {
+    return `<div class="outcome-badge equip" title="Damage reduction if equipped">
+      <span class="badge-icon">⛨</span><span class="badge-num">−${card.value}</span></div>`;
+  }
+  return '';
+}
+
 function renderCard(slotIndex) {
   const slot = $('slot-' + slotIndex);
   const card = state.room[slotIndex];
@@ -1822,22 +1842,7 @@ function renderCard(slotIndex) {
     && state.lastMonsterValue !== null
     && card.value >= state.lastMonsterValue);
 
-  // Outcome badge — predicts what happens if the player resolves this card
-  let badgeHtml = '';
-  if (kind === 'monster') {
-    const useWeapon = state.weapon && (state.lastMonsterValue === null || card.value < state.lastMonsterValue);
-    const dmg = useWeapon ? Math.max(0, card.value - state.weapon.value) : card.value;
-    const tier = dmg === 0 ? 'safe' : dmg <= 3 ? 'low' : dmg <= 6 ? 'mid' : dmg <= 10 ? 'high' : 'lethal';
-    badgeHtml = `<div class="outcome-badge dmg ${tier}" title="Damage if you fight this">
-      <span class="badge-icon">⚔</span><span class="badge-num">−${dmg}</span></div>`;
-  } else if (kind === 'potion') {
-    const heal = Math.min(card.value, state.maxHp - state.hp);
-    badgeHtml = `<div class="outcome-badge heal" title="HP restored if you drink this">
-      <span class="badge-icon">✚</span><span class="badge-num">+${heal}</span></div>`;
-  } else if (kind === 'weapon') {
-    badgeHtml = `<div class="outcome-badge equip" title="Damage reduction if equipped">
-      <span class="badge-icon">⛨</span><span class="badge-num">−${card.value}</span></div>`;
-  }
+  const badgeHtml = outcomeBadgeHtml(card);
 
   slot.innerHTML = `
     <div class="card ${kind} ${constraintLocked ? 'locked-out' : ''} flipping" data-slot="${slotIndex}">
@@ -1904,13 +1909,29 @@ function renderAdventureScene() {
     const kind = SUIT[card.suit].kind;
     el.dataset.kind = kind;
     el.dataset.value = card.value;
+    // Locked-out: weapon equipped + card.value >= last-slain (blade dulls).
+    // Surfaces as a darker tile + struck-through prediction so user sees why.
+    const constraintLocked = (kind === 'monster'
+      && state.weapon
+      && state.lastMonsterValue !== null
+      && card.value >= state.lastMonsterValue);
+    el.classList.toggle('locked-out', constraintLocked);
+    // v0.6.1 — replace the value/suit corner badge with plain stat language.
+    // Adventure mode reads as "monster has 8 HP" / "+4 weapon" / "+8 HP" for
+    // potion. The outcome-prediction badge (top-right) still shows the actual
+    // damage you'd take or HP you'd recover after weapon math, locked-out
+    // constraints, max-HP cap, etc.
+    let labelTop, labelBot;
+    if (kind === 'monster')      { labelTop = card.value;       labelBot = 'HP'; }
+    else if (kind === 'potion')  { labelTop = '+' + card.value; labelBot = 'HP'; }
+    else                         { labelTop = '+' + card.value; labelBot = 'WPN'; }   // weapon
     el.innerHTML =
       `<div class="ent-sprite">${svgIllustration(card)}</div>` +
       `<div class="ent-corner">` +
-        `<span class="ent-value">${VALUE_LABEL[card.value]}</span>` +
-        `<span class="ent-suit">${SUIT[card.suit].glyph}</span>` +
+        `<span class="ent-value">${labelTop}</span>` +
+        `<span class="ent-suit">${labelBot}</span>` +
       `</div>` +
-      `<div class="ent-pedestal"></div>`;
+      outcomeBadgeHtml(card);
   }
 }
 
@@ -1941,30 +1962,106 @@ function returnPlayerHome() {
   player.style.zIndex = '';
 }
 
-// Update outcome badges & locked-out state on existing room cards without re-creating them.
+// v0.6.0 — corridor + door cinematic. Replaces the v0.5.5 plain corridor
+// fade with a real "trainer walks to the door, the door opens, camera
+// follows through" sequence. Helpers below are composed by refillRoom().
+function walkPlayerToCorridor() {
+  if (state.mode !== 'adventure') return;
+  const player = document.getElementById('player-layer');
+  if (!player) return;
+  player.style.transition = 'transform 700ms ease-in-out, opacity 700ms ease-in-out';
+  player.style.transform = 'translate(180px, -220px) scale(0.42)';
+  player.style.opacity = '0.42';
+  player.style.zIndex = '4';
+}
+function walkPlayerFromCorridor() {
+  const player = document.getElementById('player-layer');
+  if (!player) return;
+  player.style.transition = 'transform 620ms ease-in-out, opacity 420ms ease-in';
+  player.style.transform = '';
+  player.style.opacity = '';
+  player.style.zIndex = '';
+  setTimeout(() => { if (player) player.style.transition = ''; }, 700);
+}
+function openDungeonDoor()  {
+  const d = qs('.dungeon-door');
+  if (d && !d.classList.contains('door-open')) {
+    d.classList.add('door-open');
+    Audio.play('door-open');
+  }
+}
+function closeDungeonDoor() {
+  const d = qs('.dungeon-door');
+  if (d && d.classList.contains('door-open')) {
+    d.classList.remove('door-open');
+    Audio.play('door-close');
+  }
+}
+// Camera follow: scale + translate the arena so the door drifts toward
+// viewport-center — reads as "we just walked through the doorway."
+function zoomCameraThroughDoor() {
+  const arena = qs('.dungeon-arena');
+  if (!arena) return;
+  arena.style.transition = 'transform 700ms cubic-bezier(0.5, 0, 0.4, 1)';
+  arena.style.transformOrigin = 'calc(50% - 100px) 25%';
+  arena.style.transform = 'scale(1.55)';
+}
+function resetCameraZoom() {
+  const arena = qs('.dungeon-arena');
+  if (!arena) return;
+  arena.style.transition = 'transform 600ms cubic-bezier(0.5, 0, 0.4, 1)';
+  arena.style.transform = '';
+  setTimeout(() => {
+    if (arena) { arena.style.transition = ''; arena.style.transformOrigin = ''; }
+  }, 700);
+}
+
+// Update outcome badges & locked-out state on existing room cards/entities
+// without re-creating them. v0.5.6 — also refreshes the .adv-entity badges
+// so adventure mode reflects equipped-weapon / dulled-blade state changes.
 function refreshBadges() {
   for (let i = 0; i < 4; i++) {
     const card = state.room[i];
     if (!card) continue;
-    const slot = $('slot-' + i);
-    if (!slot) continue;
-    const cardEl = qs('.card', slot);
-    if (!cardEl) continue;
-    const badge = qs('.outcome-badge', slot);
-    if (!badge) continue;
     const kind = SUIT[card.suit].kind;
-    const numEl = qs('.badge-num', badge);
+    let dmg = 0, heal = 0, tier = '';
+    let constraintLocked = false;
     if (kind === 'monster') {
       const useWeapon = state.weapon && (state.lastMonsterValue === null || card.value < state.lastMonsterValue);
-      const dmg = useWeapon ? Math.max(0, card.value - state.weapon.value) : card.value;
-      const tier = dmg === 0 ? 'safe' : dmg <= 3 ? 'low' : dmg <= 6 ? 'mid' : dmg <= 10 ? 'high' : 'lethal';
-      badge.className = `outcome-badge dmg ${tier}`;
-      if (numEl) numEl.textContent = `−${dmg}`;
-      const constraintLocked = state.weapon && state.lastMonsterValue !== null && card.value >= state.lastMonsterValue;
-      cardEl.classList.toggle('locked-out', constraintLocked);
+      dmg = useWeapon ? Math.max(0, card.value - state.weapon.value) : card.value;
+      tier = dmg === 0 ? 'safe' : dmg <= 3 ? 'low' : dmg <= 6 ? 'mid' : dmg <= 10 ? 'high' : 'lethal';
+      constraintLocked = state.weapon && state.lastMonsterValue !== null && card.value >= state.lastMonsterValue;
     } else if (kind === 'potion') {
-      const heal = Math.min(card.value, state.maxHp - state.hp);
-      if (numEl) numEl.textContent = `+${heal}`;
+      heal = Math.min(card.value, state.maxHp - state.hp);
+    }
+
+    // Card slot (Quick mode visible).
+    const slot = $('slot-' + i);
+    const cardEl = slot ? qs('.card', slot) : null;
+    const cardBadge = slot ? qs('.outcome-badge', slot) : null;
+    if (cardEl && cardBadge) {
+      const numEl = qs('.badge-num', cardBadge);
+      if (kind === 'monster') {
+        cardBadge.className = `outcome-badge dmg ${tier}`;
+        if (numEl) numEl.textContent = `−${dmg}`;
+        cardEl.classList.toggle('locked-out', constraintLocked);
+      } else if (kind === 'potion') {
+        if (numEl) numEl.textContent = `+${heal}`;
+      }
+    }
+
+    // Adventure entity (Adventure mode visible).
+    const advEl = document.getElementById('adv-entity-' + i);
+    const advBadge = advEl ? qs('.outcome-badge', advEl) : null;
+    if (advEl && advBadge) {
+      const numEl = qs('.badge-num', advBadge);
+      if (kind === 'monster') {
+        advBadge.className = `outcome-badge dmg ${tier}`;
+        if (numEl) numEl.textContent = `−${dmg}`;
+        advEl.classList.toggle('locked-out', constraintLocked);
+      } else if (kind === 'potion') {
+        if (numEl) numEl.textContent = `+${heal}`;
+      }
     }
   }
 }
@@ -2294,7 +2391,7 @@ function doFight(slotIndex, forceBare) {
       // must run AFTER that so the refill check sees the just-cleared slot as null.
       // The original v0.3 doFight used 600ms after consumeCard for this reason; v0.4
       // accidentally set it to 400ms and broke the 3-of-4 → refill rule.
-      setTimeout(() => finalizeAction(), 600);
+      setTimeout(() => finalizeAction(), state.mode === 'quick' ? 160 : 600);
     }
   });
 }
@@ -2320,7 +2417,7 @@ function doDrink(slotIndex) {
       // must run AFTER that so the refill check sees the just-cleared slot as null.
       // The original v0.3 doFight used 600ms after consumeCard for this reason; v0.4
       // accidentally set it to 400ms and broke the 3-of-4 → refill rule.
-      setTimeout(() => finalizeAction(), 600);
+      setTimeout(() => finalizeAction(), state.mode === 'quick' ? 160 : 600);
     }
   });
 }
@@ -2350,7 +2447,7 @@ function doEquip(slotIndex) {
       renderWeapon();
       // 600ms (matches doFight/doDrink) — must wait for consumeCard's 500ms
       // internal state-null timer so finalizeAction sees the correct remaining count.
-      setTimeout(() => finalizeAction(), 600);
+      setTimeout(() => finalizeAction(), state.mode === 'quick' ? 160 : 600);
     }
   });
 }
@@ -2374,11 +2471,14 @@ function consumeCard(slotIndex) {
   // sync — the underlying state.room nullification happens once for both.
   const advEl = document.getElementById('adv-entity-' + slotIndex);
   if (advEl) advEl.classList.add('consumed');
+  // v0.5.6 — Quick mode runs ~4x faster so taps queue smoothly. Adventure
+  // keeps the leisurely 500ms fade matching its cinematic pacing.
+  const fadeMs = state.mode === 'quick' ? 120 : 500;
   setTimeout(() => {
     state.room[slotIndex] = null;
     renderCard(slotIndex);
     renderAdventureScene();
-  }, 500);
+  }, fadeMs);
 }
 
 function finalizeAction() {
@@ -2404,27 +2504,53 @@ function finalizeAction() {
     // the deal animations finish.
     state.inputLocked = true;
     renderHud();
-    setTimeout(() => refillRoom(), 320);
+    setTimeout(() => refillRoom(), state.mode === 'quick' ? 80 : 320);
   } else if (remaining === 0 && state.deck.length > 0) {
     state.inputLocked = true;
     renderHud();
-    setTimeout(() => refillRoom(), 320);
+    setTimeout(() => refillRoom(), state.mode === 'quick' ? 80 : 320);
   }
   updatePeek();
 }
 
 function refillRoom() {
-  // place new cards in empty slots, with stagger
-  let delay = 0;
   state.undoUsed = false; // new room → undo refreshed
-  // Adventure mode: brief fade-out / fade-in on the entity scene to suggest
-  // a room transition. Cards can deal in over the top; the entity scene
-  // re-renders inside the fade.
+
+  // Adventure mode (v0.6.0): full door cinematic. Sequence:
+  //   t=0     trainer walks toward door
+  //   t=550   door swings open + camera zooms through the doorway
+  //   t=900   entity scene fade-out + new entities deal in
+  //   t=1700  door swings closed
+  //   t=1900  camera resets + trainer walks back
+  //   t=2520  input unlocks
+  // Quick mode keeps the snappy v0.5.6 timing — no door, no walk.
   const advScene = $('adventure-scene');
-  if (state.mode === 'adventure' && advScene) {
+  const useCorridor = state.mode === 'adventure' && advScene;
+  const preWalkMs = useCorridor ? 900 : 0;   // walk + door + camera before deal
+
+  if (useCorridor) {
+    walkPlayerToCorridor();
+    // Footstep tap as the trainer walks toward the door
+    Audio.play('footstep');
+    setTimeout(() => Audio.play('footstep'), 220);
+    setTimeout(() => Audio.play('footstep'), 440);
+    setTimeout(() => openDungeonDoor(), 550);
+    setTimeout(() => zoomCameraThroughDoor(), 600);
+    setTimeout(() => {
+      advScene.classList.add('room-transition');
+      setTimeout(() => advScene.classList.remove('room-transition'), 720);
+    }, preWalkMs);
+    setTimeout(() => closeDungeonDoor(), preWalkMs + 700);
+    setTimeout(() => resetCameraZoom(), preWalkMs + 850);
+  } else if (advScene) {
     advScene.classList.add('room-transition');
     setTimeout(() => advScene.classList.remove('room-transition'), 720);
   }
+
+  // Stagger the deal so entities/cards appear one-by-one. Quick mode uses a
+  // tight 60ms stagger so refilling doesn't kill the tap-tap-tap rhythm.
+  const stagger = state.mode === 'quick' ? 60 : 140;
+  let delay = preWalkMs + (useCorridor ? 200 : 0);
   for (let i = 0; i < 4; i++) {
     if (state.room[i] === null && state.deck.length > 0) {
       const card = state.deck.shift();
@@ -2436,17 +2562,20 @@ function refillRoom() {
           Audio.play('card-deal');
         }, d);
       })(i, delay);
-      delay += 140;
+      delay += stagger;
     }
   }
+
+  if (useCorridor) {
+    // Trainer walks back from the corridor after the camera/door reset.
+    setTimeout(() => walkPlayerFromCorridor(), preWalkMs + 950);
+  }
+  const tail = state.mode === 'quick' ? 60 : 350;
   setTimeout(() => {
-    // Unlock input now that deal animations have finished. (finalizeAction
-    // re-locked input before scheduling this refill to prevent a race-click
-    // on the surviving card.)
     state.inputLocked = false;
     renderHud();
     updatePeek();
-  }, delay + 200);
+  }, delay + tail);
 }
 
 // -----------------------------------------------------------
@@ -2565,18 +2694,23 @@ function newGame(diff) {
   document.body.classList.toggle('mode-quick', state.mode === 'quick');
   document.body.classList.toggle('mode-adventure', state.mode !== 'quick');
 
-  // Adventure mode: camera-zoom-into-the-entrance intro animation. Clear any
-  // lingering treasure-room overlay from a previous run, then trigger the
-  // dungeon-arena zoom-in keyframe by toggling the class.
+  // Adventure mode entry (v0.6.0): open the door, zoom in through it, settle.
+  // Combines the zoom-intro keyframe with the new door-swing for a "we just
+  // walked into the crypt" feel rather than a hard scene cut.
   const arena = qs('.dungeon-arena');
   const treasure = $('treasure-room');
   if (treasure) treasure.classList.remove('active');
+  closeDungeonDoor();
+  resetCameraZoom();
   if (arena) {
     arena.classList.remove('zoom-intro');
     if (state.mode === 'adventure') {
-      // Force a reflow so re-adding the class restarts the animation.
+      // Door pre-opens so the zoom-in reveals the room beyond. After the
+      // zoom-in settles, the door swings shut behind the trainer.
+      openDungeonDoor();
       void arena.offsetWidth;
       arena.classList.add('zoom-intro');
+      setTimeout(() => closeDungeonDoor(), 1100);
       setTimeout(() => arena.classList.remove('zoom-intro'), 1300);
     }
   }
@@ -2596,26 +2730,70 @@ function newGame(diff) {
 
 function endGame(victory) {
   state.inputLocked = true;
-  // Adventure-mode treasure room (Phase 4 stub): on victory, show the
-  // treasure-room overlay for ~1.6s before the victory frame. Phase 5 will
-  // animate the trainer walking in and replace the placeholder pile with
-  // pixel-art treasure sprites.
   const treasure = $('treasure-room');
-  const showTreasure = victory && state.mode === 'adventure' && treasure;
-  const treasureDelay = showTreasure ? 1600 : 0;
-  if (showTreasure) {
-    treasure.classList.add('active');
+  const adventureWin = victory && state.mode === 'adventure' && treasure;
+
+  if (adventureWin) {
+    // Treasure-room entry cinematic (v0.6.0). Trainer walks to the door, the
+    // door opens revealing the treasure room beyond, the trainer walks IN from
+    // the far-left toward the gold pile, then the victory frame lands.
     Audio.play('victory');
-  }
-  setTimeout(() => {
-    if (victory) {
-      if (!showTreasure) Audio.play('victory');
+    walkPlayerToCorridor();                 // t=0  — walk to door
+    setTimeout(() => openDungeonDoor(), 250);
+    setTimeout(() => {
+      treasure.classList.add('active');     // t=520 — treasure scene appears
+      Audio.play('treasure');
+    }, 520);
+
+    const player = document.getElementById('player-layer');
+    setTimeout(() => {
+      // t=920 — teleport player to far-left of the treasure scene (above
+      // the overlay) then walk across toward the pile. Disable transition
+      // for the teleport, force reflow, re-enable for the walk.
+      if (player) {
+        player.style.transition = 'none';
+        player.style.transform = 'translate(-360px, -180px) scale(1)';
+        player.style.opacity = '1';
+        player.style.zIndex = '40';   // above treasure-room (z-index 30)
+        void player.offsetWidth;
+        player.style.transition = 'transform 1500ms cubic-bezier(0.4, 0, 0.5, 1)';
+        requestAnimationFrame(() => {
+          // walk to a spot left-of-pile so trainer + treasure both visible
+          player.style.transform = 'translate(-90px, -180px) scale(1.05)';
+        });
+      }
+    }, 920);
+
+    setTimeout(() => {
+      // t=2700 — victory frame + cleanup. Treasure stays visible briefly
+      // behind the overlay before fading.
       flashScreen('gold');
       const stats = computeStats();
       $('victory-stats').innerHTML = renderStats(stats);
       saveBest(stats);
       showOverlay('victory');
-      if (treasure) treasure.classList.remove('active');
+      // Reset player-layer inline state so a subsequent run starts clean.
+      if (player) {
+        player.style.transition = '';
+        player.style.transform = '';
+        player.style.opacity = '';
+        player.style.zIndex = '';
+      }
+      treasure.classList.remove('active');
+      closeDungeonDoor();
+    }, 2700);
+    return;
+  }
+
+  // Non-adventure victory + all defeats: original path (no cinematic).
+  setTimeout(() => {
+    if (victory) {
+      Audio.play('victory');
+      flashScreen('gold');
+      const stats = computeStats();
+      $('victory-stats').innerHTML = renderStats(stats);
+      saveBest(stats);
+      showOverlay('victory');
     } else {
       Audio.play('death');
       flashScreen('red');
@@ -2623,7 +2801,7 @@ function endGame(victory) {
       $('defeat-stats').innerHTML = renderStats(stats);
       showOverlay('defeat');
     }
-  }, 700 + treasureDelay);
+  }, 700);
 }
 
 function computeStats() {

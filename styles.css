@@ -179,25 +179,38 @@ kbd {
   pointer-events: none;
   z-index: 0;
   filter: drop-shadow(0 14px 30px rgba(0,0,0,0.7));
-  opacity: 0.85;
+  opacity: 0.95;
+}
+/* The dark "void beyond the door" — visible only when both halves swing open
+   during a room transition. Sits inside the stone arch frame. */
+.dungeon-door .door-void {
+  opacity: 0;
+  transition: opacity 0.4s ease-in-out;
+}
+.dungeon-door .door-half {
+  transform-origin: 22px 220px;   /* hinge point on left frame for left half */
+  transition: transform 0.7s cubic-bezier(0.6, 0, 0.4, 1);
+}
+.dungeon-door .door-half-right {
+  transform-origin: 198px 220px;  /* hinge point on right frame */
+}
+/* Door OPENS — both halves swing outward, void becomes visible. Triggered
+   by adding .door-open to .dungeon-door (set in JS during transitions). */
+.dungeon-door.door-open .door-void { opacity: 1; }
+.dungeon-door.door-open .door-half-left  { transform: rotateY(-78deg) translateX(-2px); }
+.dungeon-door.door-open .door-half-right { transform: rotateY( 78deg) translateX( 2px); }
+.dungeon-door {
+  perspective: 800px;             /* gives the rotateY a 3D feel */
 }
 
 /* ====== Floor strip ====== */
-.dungeon-floor {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 32%;
-  background:
-    linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='80' viewBox='0 0 240 80'><defs><linearGradient id='f' x1='0%' y1='0%' x2='0%' y2='100%'><stop offset='0%' stop-color='%23241710'/><stop offset='100%' stop-color='%23080404'/></linearGradient></defs><rect width='240' height='80' fill='%23110806'/><g stroke='%23000' stroke-width='2'><rect x='2' y='2' width='76' height='38' fill='url(%23f)'/><rect x='82' y='2' width='76' height='38' fill='%231a0f08'/><rect x='162' y='2' width='76' height='38' fill='url(%23f)'/><rect x='-38' y='44' width='76' height='38' fill='%231a0f08'/><rect x='42' y='44' width='76' height='38' fill='url(%23f)'/><rect x='122' y='44' width='76' height='38' fill='%231a0f08'/><rect x='202' y='44' width='76' height='38' fill='url(%23f)'/></g></svg>");
-  background-size: 100% 100%, 240px 80px;
-  background-repeat: no-repeat, repeat;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.7;
-}
+/* v0.5.6 — .dungeon-floor was a 32%-tall bottom strip with a heavy
+   `rgba(0,0,0,0.55)` bottom-fade that read as a "darker overlay" cutting
+   the room in half. The bg-stone wall already provides full-screen
+   texture, so the floor strip wasn't adding anything. Removed the
+   element from the visual stack but left the rule (display:none) in
+   case some legacy code touches it. */
+.dungeon-floor { display: none; }
 
 /* ====== Cobwebs (corner decoration) ====== */
 .cobweb {
@@ -324,6 +337,118 @@ body[data-stage="sanctum"] .decor-blood { opacity: 0.85; }
 }
 body[data-stage="throne"] .decor-ash { opacity: 1; }
 
+/* =============================================================
+   PER-ROOM VISUAL VARIETY (v0.6.0) — each of the 5 atmospheric stages gets
+   distinct decor (floor decals, wall accents) so descending into the next
+   stage feels like a different room, not just a recolor.
+
+   Implementation: body[data-stage="..."] is set by setAtmosphere() based on
+   how many cards have been resolved. Each stage scopes its own .bg-stone::after
+   background — a radial-gradient mosaic of stage-specific decor (skulls /
+   gold flecks / blood splatters / ember pits / ice motes).
+
+   Anchored to body.mode-* so the menu screens don't pick up dungeon decor.
+   ============================================================= */
+body.mode-adventure .bg-stone::after,
+body.mode-quick     .bg-stone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  transition: background 1200ms ease-out;
+}
+
+/* Antechamber (start) — clean stone, just two faint moss patches at the
+   foot of the side walls. Reads as "first room — nothing's gone wrong yet." */
+body.mode-adventure[data-stage="antechamber"] .bg-stone::after,
+body.mode-quick    [data-stage="antechamber"] .bg-stone::after {
+  background:
+    radial-gradient(ellipse 130px 60px at 8% 92%,  rgba(106,140,74,0.45) 0%, transparent 70%),
+    radial-gradient(ellipse 130px 60px at 92% 92%, rgba(106,140,74,0.45) 0%, transparent 70%);
+}
+
+/* Catacombs — skull alcoves on the side walls (paler small circles) +
+   chains hanging from above (dark vertical streaks) + heavy moss. */
+body.mode-adventure[data-stage="catacombs"] .bg-stone::after,
+body.mode-quick    [data-stage="catacombs"] .bg-stone::after {
+  background:
+    /* skull "eye sockets" — paired dark circles in mid-wall recesses */
+    radial-gradient(circle 5px at 4% 38%,  #0a0608 0%, #0a0608 100%),
+    radial-gradient(circle 5px at 7% 38%,  #0a0608 0%, #0a0608 100%),
+    radial-gradient(circle 5px at 4% 58%,  #0a0608 0%, #0a0608 100%),
+    radial-gradient(circle 5px at 7% 58%,  #0a0608 0%, #0a0608 100%),
+    radial-gradient(circle 5px at 93% 38%, #0a0608 0%, #0a0608 100%),
+    radial-gradient(circle 5px at 96% 38%, #0a0608 0%, #0a0608 100%),
+    radial-gradient(circle 5px at 93% 58%, #0a0608 0%, #0a0608 100%),
+    radial-gradient(circle 5px at 96% 58%, #0a0608 0%, #0a0608 100%),
+    /* chain shadows hanging down */
+    linear-gradient(180deg, transparent 5%, rgba(0,0,0,0.5) 6%, transparent 7%, transparent 100%) 22% 0 / 2px 100% no-repeat,
+    linear-gradient(180deg, transparent 5%, rgba(0,0,0,0.5) 6%, transparent 7%, transparent 100%) 78% 0 / 2px 100% no-repeat,
+    /* extra moss in all four corners */
+    radial-gradient(ellipse 150px 80px at 4% 92%,  rgba(74,108,56,0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 150px 80px at 96% 92%, rgba(74,108,56,0.7) 0%, transparent 70%);
+  background-repeat: no-repeat;
+}
+
+/* Reliquary — golden flecks scattered on the floor + brass candelabra
+   silhouettes on the side walls (warm gold radial blobs). */
+body.mode-adventure[data-stage="reliquary"] .bg-stone::after,
+body.mode-quick    [data-stage="reliquary"] .bg-stone::after {
+  background:
+    /* gold coin scatter on the floor */
+    radial-gradient(circle 4px at 12% 86%, #c9a857 0%, transparent 100%),
+    radial-gradient(circle 3px at 18% 90%, #c9a857 0%, transparent 100%),
+    radial-gradient(circle 5px at 26% 88%, #e8c878 0%, transparent 100%),
+    radial-gradient(circle 4px at 76% 89%, #c9a857 0%, transparent 100%),
+    radial-gradient(circle 3px at 82% 86%, #e8c878 0%, transparent 100%),
+    radial-gradient(circle 4px at 88% 90%, #c9a857 0%, transparent 100%),
+    /* candelabra silhouettes on side walls (vertical warm glow) */
+    radial-gradient(ellipse 36px 90px at 5% 50%,  rgba(232,200,120,0.32) 0%, transparent 70%),
+    radial-gradient(ellipse 36px 90px at 95% 50%, rgba(232,200,120,0.32) 0%, transparent 70%),
+    /* slight warm wall tint */
+    linear-gradient(180deg, rgba(180,140,80,0.05) 0%, rgba(180,140,80,0.12) 100%);
+}
+
+/* Sanctum — bloody handprints on walls + dripping stains + dark altar at
+   back-center (large dark mass on the floor). */
+body.mode-adventure[data-stage="sanctum"] .bg-stone::after,
+body.mode-quick    [data-stage="sanctum"] .bg-stone::after {
+  background:
+    /* dark altar mass at the back */
+    radial-gradient(ellipse 200px 80px at 50% 38%, rgba(40,8,12,0.7) 0%, transparent 60%),
+    /* blood handprints on side walls (small red blotches) */
+    radial-gradient(ellipse 16px 18px at 8% 42%,  rgba(160,28,28,0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 14px 16px at 12% 56%, rgba(160,28,28,0.65) 0%, transparent 70%),
+    radial-gradient(ellipse 16px 18px at 88% 38%, rgba(160,28,28,0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 14px 16px at 92% 54%, rgba(160,28,28,0.65) 0%, transparent 70%),
+    /* dripping stains running down */
+    linear-gradient(180deg, transparent 35%, rgba(120,16,20,0.5) 36%, transparent 80%) 24% 0 / 3px 100% no-repeat,
+    linear-gradient(180deg, transparent 28%, rgba(120,16,20,0.6) 29%, transparent 78%) 76% 0 / 3px 100% no-repeat,
+    /* puddles on the floor */
+    radial-gradient(ellipse 60px 16px at 30% 90%, rgba(80,8,12,0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 70px 18px at 70% 92%, rgba(80,8,12,0.7) 0%, transparent 70%);
+}
+
+/* Throne — obsidian columns + glowing ember pits in the floor + cracked
+   stone (jagged dark veins across the wall). */
+body.mode-adventure[data-stage="throne"] .bg-stone::after,
+body.mode-quick    [data-stage="throne"] .bg-stone::after {
+  background:
+    /* glowing ember pits in floor (warm orange dots) */
+    radial-gradient(circle 10px at 18% 86%, rgba(255,100,40,0.7) 0%, transparent 70%),
+    radial-gradient(circle 8px  at 24% 90%, rgba(255,140,60,0.6) 0%, transparent 70%),
+    radial-gradient(circle 12px at 50% 88%, rgba(255,80,30,0.75) 0%, transparent 70%),
+    radial-gradient(circle 10px at 78% 90%, rgba(255,100,40,0.7) 0%, transparent 70%),
+    radial-gradient(circle 8px  at 84% 86%, rgba(255,140,60,0.6) 0%, transparent 70%),
+    /* obsidian column silhouettes on side walls */
+    radial-gradient(ellipse 28px 220px at 8% 55%,  rgba(0,0,8,0.65) 0%, transparent 70%),
+    radial-gradient(ellipse 28px 220px at 92% 55%, rgba(0,0,8,0.65) 0%, transparent 70%),
+    /* cracked-stone veins (diagonal dark streaks) */
+    linear-gradient(135deg, transparent 30%, rgba(0,0,0,0.4) 31%, transparent 32%) 0 0 / 80px 80px,
+    linear-gradient(45deg,  transparent 50%, rgba(0,0,0,0.4) 51%, transparent 52%) 0 0 / 100px 100px;
+}
+
 .torch {
   position: absolute;
   top: 14px;
@@ -405,6 +530,198 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
 @keyframes glow-pulse {
   0%   { opacity: 0.7; transform: translateX(-50%) scale(1); }
   100% { opacity: 1;   transform: translateX(-50%) scale(1.08); }
+}
+
+/* =============================================================
+   GREY CRYPT REPALETTE (v0.5.4) — when the player is in a game (Adventure
+   or Quick mode), the dungeon arena reads as an abandoned crypt: cool
+   grey stones, vivid green moss in the corners, and cold blue lanterns
+   replacing the warm torches. Scoped to body.mode-adventure / body.mode-quick
+   so the parchment-gold menus + crypt-entrance backdrop on the main menu
+   are untouched. The mode classes are cleaned up by showScreen() when the
+   user returns to a menu, so this repalette never bleeds outside the
+   game screen.
+   ============================================================= */
+body.mode-adventure .bg-stone,
+body.mode-quick     .bg-stone {
+  background-color: #0e0e12;
+  /* Cool grey brick pattern. Same SVG geometry as the warm version, only
+     the linear-gradient stops changed: slate-grey faces, near-black mortar,
+     pale-blue specular highlights along the top of each course. */
+  background-image:
+    radial-gradient(ellipse at 50% 35%, rgba(80,90,100,0.30) 0%, transparent 60%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='160' viewBox='0 0 320 160'><defs><linearGradient id='b' x1='0%25' y1='0%25' x2='0%25' y2='100%25'><stop offset='0%25' stop-color='%23545458'/><stop offset='100%25' stop-color='%231b1b1f'/></linearGradient><linearGradient id='c' x1='0%25' y1='0%25' x2='0%25' y2='100%25'><stop offset='0%25' stop-color='%234a4a4e'/><stop offset='100%25' stop-color='%23151517'/></linearGradient></defs><rect width='320' height='160' fill='%23101013'/><g stroke='%23060608' stroke-width='2'><rect x='2' y='2' width='102' height='76' fill='url(%23b)'/><rect x='108' y='2' width='102' height='76' fill='url(%23c)'/><rect x='214' y='2' width='102' height='76' fill='url(%23b)'/><rect x='-50' y='82' width='102' height='76' fill='url(%23c)'/><rect x='56' y='82' width='102' height='76' fill='url(%23b)'/><rect x='162' y='82' width='102' height='76' fill='url(%23c)'/><rect x='268' y='82' width='102' height='76' fill='url(%23b)'/></g><g fill='rgba(220,224,232,0.07)'><rect x='4' y='4' width='98' height='1.5'/><rect x='110' y='4' width='98' height='1.5'/><rect x='216' y='4' width='98' height='1.5'/><rect x='-48' y='84' width='98' height='1.5'/><rect x='58' y='84' width='98' height='1.5'/><rect x='164' y='84' width='98' height='1.5'/><rect x='270' y='84' width='98' height='1.5'/></g><g fill='rgba(0,0,0,0.22)'><circle cx='40' cy='30' r='3'/><circle cx='70' cy='55' r='2'/><circle cx='180' cy='40' r='2.5'/><circle cx='250' cy='25' r='2'/><circle cx='100' cy='130' r='3'/><circle cx='220' cy='110' r='2'/><circle cx='10' cy='115' r='2'/></g></svg>");
+  /* Disable the per-stage warm hue-rotate filter — it'd undo the grey. */
+  filter: none;
+}
+
+/* Beefed-up moss + cold water-stains on top of the grey bricks. Existing
+   ::before in the warm palette had moss but at low opacity; the crypt look
+   needs the moss to actually pop in the corners. */
+body.mode-adventure .bg-stone::before,
+body.mode-quick     .bg-stone::before {
+  background:
+    /* corner moss tufts — brighter, more saturated greens */
+    radial-gradient(ellipse 110px 60px at 6% 18%,  rgba(106,140,74,0.7) 0%, transparent 65%),
+    radial-gradient(ellipse 80px 40px  at 10% 22%, rgba(58,90,38,0.8) 0%, transparent 70%),
+    radial-gradient(ellipse 120px 70px at 94% 14%, rgba(106,140,74,0.65) 0%, transparent 65%),
+    radial-gradient(ellipse 90px 50px  at 90% 18%, rgba(58,90,38,0.75) 0%, transparent 70%),
+    radial-gradient(ellipse 130px 80px at 4% 90%,  rgba(74,108,56,0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 100px 60px at 8% 92%,  rgba(46,72,30,0.85) 0%, transparent 70%),
+    radial-gradient(ellipse 140px 90px at 96% 88%, rgba(74,108,56,0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 110px 70px at 92% 92%, rgba(46,72,30,0.85) 0%, transparent 70%),
+    /* cold water stains running down from the top */
+    radial-gradient(ellipse 60px 220px at 22% 0%, rgba(40,52,68,0.55) 0%, transparent 70%),
+    radial-gradient(ellipse 90px 280px at 75% 0%, rgba(34,46,60,0.55) 0%, transparent 70%),
+    /* deep shadow corners (keep) */
+    radial-gradient(circle at 0% 0%,    rgba(0,0,0,0.75) 0%, transparent 30%),
+    radial-gradient(circle at 100% 0%,  rgba(0,0,0,0.75) 0%, transparent 30%),
+    radial-gradient(circle at 0% 100%,  rgba(0,0,0,0.9) 0%, transparent 35%),
+    radial-gradient(circle at 100% 100%, rgba(0,0,0,0.9) 0%, transparent 35%);
+}
+
+/* Dungeon door: the inline SVG uses warm-wood gradients we can't easily
+   re-color from CSS. Instead, drop saturation + slight hue shift to push
+   the wood into iron-grey territory. */
+body.mode-adventure .dungeon-door,
+body.mode-quick     .dungeon-door {
+  filter: saturate(0.18) brightness(0.85) hue-rotate(180deg)
+          drop-shadow(0 14px 30px rgba(0,0,0,0.7));
+}
+
+/* Floor strip: same desaturate trick. */
+body.mode-adventure .dungeon-floor,
+body.mode-quick     .dungeon-floor {
+  filter: saturate(0.2) brightness(0.95) hue-rotate(180deg);
+}
+
+/* Lanterns — replace the torches' warm flame palette with a cold blue glow.
+   The .flame and .glow rules consume CSS variables (--atm-flame-* and
+   --atm-glow-*) so we just rebind those under the mode scope. The lantern
+   sconce gets a cooler iron tint via filter, and a cage frame is layered
+   in via box-shadow. */
+body.mode-adventure,
+body.mode-quick {
+  --atm-flame-inner: #e8f4ff;
+  --atm-flame-mid:   #88c4ff;
+  --atm-flame-outer: #4078b8;
+  --atm-flame-base:  #1c2c4a;
+  --atm-glow-strong: rgba(120,180,240,0.45);
+  --atm-glow-weak:   rgba(80,130,200,0.18);
+}
+body.mode-adventure .torch::before,
+body.mode-quick     .torch::before {
+  /* Iron-cage lantern top — darker, cooler than the warm sconce. */
+  background: radial-gradient(ellipse at 50% 30%, #4a4a52 0%, #1c1c22 60%, #060608 100%);
+  border-color: #060608;
+  box-shadow:
+    inset 0 -2px 0 #060608,
+    inset 0 2px 4px rgba(180,200,230,0.18),
+    0 4px 6px rgba(0,0,0,0.7);
+}
+body.mode-adventure .torch::after,
+body.mode-quick     .torch::after {
+  background: linear-gradient(180deg, #2c2c34 0%, #060608 100%);
+}
+body.mode-adventure .torch .flame,
+body.mode-quick     .torch .flame {
+  /* Slightly narrower + slower flicker to read as steady lantern flame. */
+  width: 24px;
+  height: 56px;
+  animation-duration: 2.4s;
+}
+
+/* Atmosphere overlay: drop the warm tint cast and use a cold dust haze. */
+body.mode-adventure .atmosphere-tint,
+body.mode-quick     .atmosphere-tint {
+  background: rgba(40,50,70,0.25);
+}
+
+/* Vignette: cool the edges to a dark-blue rather than warm-black. */
+body.mode-adventure .vignette,
+body.mode-quick     .vignette {
+  background: radial-gradient(ellipse at 50% 50%, transparent 30%,
+              rgba(8,10,18,0.6) 75%, rgba(0,0,0,0.96) 100%);
+}
+
+/* Archway corner-strips: cool grey stone instead of warm brown. */
+body.mode-adventure .archway::before,
+body.mode-adventure .archway::after,
+body.mode-quick     .archway::before,
+body.mode-quick     .archway::after {
+  background: linear-gradient(180deg, rgba(60,64,72,0.85) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(180,200,230,0.18);
+}
+
+/* Cobwebs already pale; bump opacity so they read on grey stone. */
+body.mode-adventure .cobweb,
+body.mode-quick     .cobweb {
+  opacity: 0.55;
+}
+
+/* Pause / defeat / victory overlays (v0.6.0) — when the player is in-game,
+   the overlay frame palette shifts to match the grey-crypt aesthetic so
+   pausing mid-run doesn't flash a parchment-warm panel against the cool
+   stone backdrop. Outside the game (menu screens), overlays keep parchment. */
+body.mode-adventure .overlay-frame,
+body.mode-quick     .overlay-frame {
+  background:
+    linear-gradient(180deg, rgba(28,32,40,0.96) 0%, rgba(12,14,18,0.98) 100%);
+  background-image:
+    radial-gradient(circle at 0 0,        rgba(180,200,230,0.10) 0, transparent 80px),
+    radial-gradient(circle at 100% 0,     rgba(180,200,230,0.10) 0, transparent 80px),
+    radial-gradient(circle at 0 100%,     rgba(180,200,230,0.10) 0, transparent 80px),
+    radial-gradient(circle at 100% 100%,  rgba(180,200,230,0.10) 0, transparent 80px);
+  border-color: #4a5260;
+}
+body.mode-adventure .overlay-frame::after,
+body.mode-quick     .overlay-frame::after {
+  background:
+    linear-gradient(135deg, rgba(180,200,230,0.10), transparent 30%, transparent 70%, rgba(180,200,230,0.10)),
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0, rgba(0,0,0,0.18) 1px, transparent 1px, transparent 3px);
+}
+body.mode-adventure .overlay-frame .muted,
+body.mode-quick     .overlay-frame .muted { color: #a4b4c4; }
+
+/* Drink animation polish (v0.6.0) — bottle should "consume" mid-animation.
+   The trainer's drink frames have the bottle 'w' visible in F0/F1, vanishing
+   in F2 (back to baseline). The effect is now also auto-faded by adding a
+   "drink-pulse" filter to the player layer for the duration. */
+body.mode-adventure .player-layer.action-drink {
+  filter: drop-shadow(0 14px 20px rgba(0,0,0,0.75)) drop-shadow(0 0 16px rgba(132,216,120,0.6));
+}
+body.mode-adventure .player-layer.action-equip {
+  filter: drop-shadow(0 14px 20px rgba(0,0,0,0.75)) drop-shadow(0 0 16px rgba(126,184,232,0.6));
+}
+body.mode-adventure .player-layer.action-attack {
+  filter: drop-shadow(0 14px 20px rgba(0,0,0,0.75)) drop-shadow(0 0 18px rgba(255,80,40,0.55));
+}
+
+/* Hit-spark archetype variants (v0.6.0) — already styled per archetype in the
+   existing .hit-spark CSS; here we just add slightly different motion arcs. */
+.hit-spark-pierce { background: radial-gradient(circle, #fff 0%, rgba(232,200,120,0.6) 40%, transparent 70%); }
+.hit-spark-slash  { background: radial-gradient(ellipse 60% 90%, #fff 0%, rgba(180,210,255,0.6) 40%, transparent 70%); }
+.hit-spark-smash  { background: radial-gradient(circle, rgba(232,200,120,0.85) 0%, rgba(120,80,40,0.4) 50%, transparent 80%); }
+.hit-spark-bare   { background: radial-gradient(circle, #fff 0%, rgba(232,200,120,0.4) 30%, transparent 65%); }
+
+/* Mobile Adventure pass (v0.6.0). Phone widths get tighter entity grid,
+   smaller treasure-room, smaller corridor walk translate. */
+@media (max-width: 720px) {
+  body.mode-adventure .adv-entity .ent-corner {
+    padding: 2px 4px;
+  }
+  body.mode-adventure .adv-entity .ent-value { font-size: 9px; }
+  body.mode-adventure .adv-entity .ent-suit  { font-size: 10px; }
+  body.mode-adventure .outcome-badge {
+    font-size: 11px;
+    padding: 3px 6px;
+    top: -8px;
+    right: -8px;
+  }
+  body.mode-adventure .outcome-badge .badge-num { font-size: 11px; }
+  body.mode-adventure .outcome-badge .badge-icon { font-size: 9px; }
+  /* Tighter walk-to-corridor on mobile (door is closer in pixels) */
+  body.mode-adventure .dungeon-door { width: 130px; height: 190px; }
 }
 
 .dust {
@@ -593,6 +910,66 @@ body.mode-quick .stage-banner  { font-size: 10px; letter-spacing: 0.22em; }
 
 /* ---- best-score ribbon at the bottom of main menu */
 .best-score                    { font-family: var(--display-px); font-size: 10px; letter-spacing: 0.22em; }
+
+/* =============================================================
+   MAIN-MENU GREY-CRYPT PALETTE (v0.5.6) — the user wanted the title screen
+   to read as the same abandoned crypt the trainer descends into. The
+   menu-frame shifts from warm-parchment to cool steel-grey, the inline
+   crypt-entrance SVG is desaturated and cool-shifted via filter (no need
+   to re-author the SVG markup), and a moss + lantern overlay layers in
+   on top with green corner tufts and a cold blue glow rising from the
+   archway interior.
+
+   Sub-screens (Difficulty / Tutorial / Options / Credits) still use the
+   warm parchment frames — the user's feedback was specifically about the
+   "main menu," and the difficulty descriptions are easier to read against
+   the warm background.
+   ============================================================= */
+#screen-menu .menu-frame {
+  background:
+    linear-gradient(180deg, rgba(28,32,40,0.94) 0%, rgba(12,14,18,0.97) 100%);
+  background-image:
+    radial-gradient(circle at 0 0,        rgba(180,200,230,0.10) 0, transparent 80px),
+    radial-gradient(circle at 100% 0,     rgba(180,200,230,0.10) 0, transparent 80px),
+    radial-gradient(circle at 0 100%,     rgba(180,200,230,0.10) 0, transparent 80px),
+    radial-gradient(circle at 100% 100%,  rgba(180,200,230,0.10) 0, transparent 80px);
+  border: 1.5px solid #4a5260;
+}
+#screen-menu .menu-frame::after {
+  background:
+    linear-gradient(135deg, rgba(180,200,230,0.10), transparent 30%, transparent 70%, rgba(180,200,230,0.10)),
+    repeating-linear-gradient(
+      0deg, rgba(0,0,0,0.18) 0, rgba(0,0,0,0.18) 1px, transparent 1px, transparent 3px
+    );
+}
+/* The crypt-entrance backdrop SVG: greyscale + cool-shift via filter so we
+   don't have to re-author the inline rects. */
+#screen-menu .crypt-entrance svg {
+  filter: saturate(0.18) brightness(0.9) hue-rotate(180deg)
+          drop-shadow(0 -10px 36px rgba(120,180,240,0.2));
+}
+/* Moss tufts + cool lantern glow layered ON TOP of the desaturated entrance.
+   Green moss in the four "wall" corners; cold blue glow rising from the
+   archway interior at the bottom-center. */
+#screen-menu .crypt-entrance::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 90px 50px  at 12% 26%, rgba(106,140,74,0.6) 0%, transparent 70%),
+    radial-gradient(ellipse 70px 40px  at 8% 30%,  rgba(58,90,38,0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 100px 60px at 88% 22%, rgba(106,140,74,0.55) 0%, transparent 70%),
+    radial-gradient(ellipse 80px 50px  at 92% 26%, rgba(58,90,38,0.65) 0%, transparent 70%),
+    radial-gradient(ellipse 90px 50px  at 14% 78%, rgba(74,108,56,0.6) 0%, transparent 70%),
+    radial-gradient(ellipse 110px 60px at 86% 78%, rgba(74,108,56,0.6) 0%, transparent 70%),
+    radial-gradient(ellipse 220px 130px at 50% 86%, rgba(120,180,240,0.22) 0%, transparent 70%);
+  mix-blend-mode: normal;
+}
+/* Tagline + best-score ribbon shift cooler so they don't clash with the
+   grey-stone backdrop. */
+#screen-menu .tagline { color: #a4b4c4; }
+#screen-menu .best-score { color: #b8c4d0; }
 
 /* =============================================================
    RETRO CHROME (v0.5.1) — sharp corners + chunky pixel-style borders
@@ -2013,44 +2390,36 @@ body.mode-quick .stage-banner  { font-size: 10px; letter-spacing: 0.22em; }
   transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
   filter: drop-shadow(0 14px 20px rgba(0,0,0,0.75));
 }
+/* v0.5.6 — knight idle is fully static. The vertical breathing bob has been
+   removed; only the action animations (drink / equip / attack / hurt) move
+   the figure. */
 .player-bob {
   width: 100%;
   height: 100%;
-  animation: player-bob 1.6s ease-in-out infinite;
   transform-origin: 50% 100%;
   position: relative;
   z-index: 2;
 }
-@keyframes player-bob {
-  0%, 100% { transform: translateY(0)    scaleY(1); }
-  50%      { transform: translateY(-3px) scaleY(0.99); }
-}
 
-/* Equipped weapon strapped diagonally on the trainer's back — visible at all
-   times when state.weapon is set. Now that the player faces RIGHT (side
-   profile), the back is on the LEFT side of the sprite, so the weapon mounts
-   from upper-left (hilt over the shoulder) angling down. Sized big (~58%) so
-   the weapon reads clearly at a glance instead of disappearing into the cloak. */
+/* Equipped weapon strapped diagonally across the knight's back — visible at
+   all times when state.weapon is set. v0.5.6 — repositioned for the new
+   back-view knight sprite: hilt sticks up over the RIGHT shoulder, blade
+   angles down-left across the back. No idle bob (idle is static now). */
 .player-weapon {
   position: absolute;
-  top: 4%;
-  left: -4%;
-  width: 58%;
-  height: 58%;
+  top: -4%;
+  left: 30%;
+  width: 50%;
+  height: 50%;
   pointer-events: none;
-  z-index: 1; /* behind player-bob so the lower portion reads as "behind" the body */
+  z-index: 0;     /* behind .player-bob so blade reads as "across the back" */
   filter: drop-shadow(0 3px 6px rgba(0,0,0,0.85));
-  transition: opacity 0.4s ease-out;
-  /* Custom keyframe that preserves the diagonal rotation through the idle bob. */
-  animation: player-weapon-bob 1.6s ease-in-out infinite;
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  transform: rotate(-30deg);
   transform-origin: 50% 100%;
 }
 .player-weapon.empty { opacity: 0; }
 .player-weapon svg { width: 100%; height: 100%; display: block; }
-@keyframes player-weapon-bob {
-  0%, 100% { transform: translateY(0)    rotate(48deg); }
-  50%      { transform: translateY(-3px) rotate(48deg); }
-}
 
 /* =============================================================
    CUTSCENE — Pokemon-style encounter staging
@@ -2140,122 +2509,120 @@ body.mode-quick .adventure-scene {
   display: none;
 }
 
-/* Entity placeholder block — colored tile with value + suit glyph. The kind
-   is encoded as data-kind so the suit color is driven from CSS. */
+/* Entity = bare sprite standing in the room (v0.5.4). No card frame, no
+   border, no pedestal — the monster / potion bottle / weapon-on-the-floor IS
+   what you see. A soft elliptical ground-shadow under each sprite anchors it
+   to the floor; on hover the sprite lifts a couple pixels to signal it's
+   interactive. The grid container still owns the slot positioning. */
 .adv-entity {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   aspect-ratio: 5 / 7;
   cursor: pointer;
-  background: linear-gradient(180deg, #2c1d10 0%, #1a0f08 100%);
-  border: 3px solid var(--gold-deep);
-  box-shadow:
-    inset 2px 2px 0 rgba(232,200,120,0.18),
-    inset -3px -3px 0 rgba(0,0,0,0.6),
-    0 8px 18px rgba(0,0,0,0.7);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   font-family: var(--display-px);
   color: var(--bone-pale);
-  transition: transform 0.18s ease-out, opacity 0.4s ease-out, box-shadow 0.18s;
-  overflow: hidden;
+  transition: transform 0.18s ease-out, opacity 0.4s ease-out, filter 0.18s;
+  overflow: visible;
 }
 .adv-entity::before {
-  /* subtle scanline texture, pixel-y */
+  /* Ground-shadow ellipse under the sprite — anchors the entity to the
+     floor and replaces the old pedestal. Sized larger for high-value
+     entities via the data-value attribute below. */
   content: "";
   position: absolute;
-  inset: 0;
-  background:
-    repeating-linear-gradient(
-      0deg,
-      rgba(0,0,0,0.18) 0,
-      rgba(0,0,0,0.18) 1px,
-      transparent 1px,
-      transparent 3px
-    );
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 64%;
+  height: 14px;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 70%);
   pointer-events: none;
+  z-index: 0;
 }
 .adv-entity:not(.empty):hover {
   transform: translateY(-4px);
-  box-shadow:
-    inset 2px 2px 0 rgba(232,200,120,0.32),
-    inset -3px -3px 0 rgba(0,0,0,0.7),
-    0 12px 26px rgba(0,0,0,0.8),
-    0 0 28px rgba(217,122,60,0.35);
+  filter: drop-shadow(0 0 14px rgba(232,200,120,0.55));
 }
-.adv-entity[data-kind="monster"] {
-  background: linear-gradient(180deg, #2a1a1a 0%, #100808 100%);
-  border-color: var(--blood-bright);
+.adv-entity:not(.empty):hover::before {
+  /* shadow stays planted while sprite lifts */
+  transform: translateX(-50%) translateY(4px);
+  opacity: 0.7;
 }
-.adv-entity[data-kind="potion"] {
-  background: linear-gradient(180deg, #6a1c2a 0%, #2c0810 100%);
-  border-color: var(--heart-bright);
-}
-.adv-entity[data-kind="weapon"] {
-  background: linear-gradient(180deg, #1f3a5e 0%, #0a1628 100%);
-  border-color: var(--mystic-bright);
-}
-/* Sprite slot inside the entity tile — fills most of the tile and lets the
-   per-sprite `sz` percentage drive the visual size. Higher-value cards use
-   bigger sz (slime sz=32 vs dragon sz=100), so the same tile shows a small
-   slime or a sprawling dragon naturally. */
+/* The sprite itself fills the tile area; per-sprite sz percentage still
+   drives the visual size (slime small, dragon huge). */
 .adv-entity .ent-sprite {
-  position: absolute;
-  inset: 6px 6px 18px 6px;
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-end;     /* anchor sprite to bottom of slot (= ground) */
   justify-content: center;
   pointer-events: none;
+  z-index: 1;
 }
 .adv-entity .ent-sprite svg {
-  /* svg's own width/height are percentages of the .ent-sprite container,
-     driven by each sprite's `sz` value (32%–100%). Larger card values draw
-     larger sprites so the visual size scales with the rules. */
+  /* svg width/height are percentages of .ent-sprite, driven by each
+     sprite's sz value (32%–100%). */
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  filter: drop-shadow(0 3px 0 rgba(0,0,0,0.6));
+  filter: drop-shadow(0 4px 0 rgba(0,0,0,0.55));
 }
-/* Card-style corner badge (value + suit) tucked in the top-left so the
-   trainer can tell at a glance what each entity is. */
+/* v0.5.6 — restore the corner badge (value + suit) so the player can read
+   what each entity is. Sits in the top-left, pixel-typography, with a
+   nailed dark background so it's legible against the sprite's body. The
+   pedestal stays removed (v0.5.4 — bare sprite, no card frame). */
+.adv-entity .ent-pedestal { display: none; }
 .adv-entity .ent-corner {
   position: absolute;
   top: 4px;
-  left: 6px;
+  left: 4px;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
-  line-height: 1;
-  z-index: 2;
+  gap: 1px;
+  padding: 3px 5px;
+  background: rgba(8,10,14,0.78);
+  border: 1px solid rgba(180,200,230,0.32);
+  border-radius: 0;
   pointer-events: none;
-  text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
+  line-height: 1;
 }
 .adv-entity .ent-value {
   font-family: var(--display-px);
-  font-size: 14px;
-  letter-spacing: 0.02em;
+  font-size: 10px;
+  letter-spacing: 0.04em;
   color: var(--bone-pale);
 }
 .adv-entity .ent-suit {
-  font-family: 'Cinzel', serif;
-  font-size: 14px;
+  /* v0.6.1 — now a stat-type label ("HP" or "WPN"), not a suit glyph. */
+  font-family: var(--display-px);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  line-height: 1;
   margin-top: 2px;
 }
 .adv-entity[data-kind="monster"] .ent-suit { color: var(--bone-pale); }
 .adv-entity[data-kind="potion"]  .ent-suit { color: var(--heart-bright); }
 .adv-entity[data-kind="weapon"]  .ent-suit { color: var(--mystic-bright); }
 
-.adv-entity .ent-pedestal {
-  position: absolute;
-  bottom: -10px;
-  left: -8px;
-  right: -8px;
-  height: 14px;
-  background: linear-gradient(180deg, #4a3220 0%, #1a0f08 100%);
-  border: 2px solid var(--gold-deep);
-  box-shadow: 0 6px 12px rgba(0,0,0,0.7);
-  z-index: -1;
+/* Locked-out (weapon dulled — value >= last slain). Greys + muted shadow so
+   the player sees they can't fight this monster with their current weapon
+   (still possible bare-handed via Shift-click on desktop). */
+.adv-entity.locked-out .ent-sprite svg {
+  filter: grayscale(0.65) brightness(0.7) drop-shadow(0 4px 0 rgba(0,0,0,0.55));
 }
+.adv-entity.locked-out .outcome-badge {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
 .adv-entity.empty {
   visibility: hidden;
   pointer-events: none;
