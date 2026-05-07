@@ -47,11 +47,16 @@
   --shadow-card:    0 18px 36px -8px rgba(0,0,0,0.75), 0 4px 12px rgba(0,0,0,0.5);
   --shadow-emboss-out: 0 1px 0 rgba(255,200,140,0.08), inset 0 1px 0 rgba(255,210,150,0.12);
 
-  /* fonts */
+  /* fonts — gothic-manuscript set used in Adventure-mode in-game chrome */
   --display:  'Cinzel Decorative', 'Cinzel', serif;
   --heading:  'Cinzel', serif;
   --smallcap: 'IM Fell DW Pica SC', 'Cinzel', serif;
   --body:     'IM Fell English', Georgia, serif;
+  /* fonts — retro pixel set used in menus, overlays and Quick-mode HUD
+     (v0.5.1 visual pass). Press Start 2P for headings/labels (chunky 8-bit),
+     VT323 for body copy (tall mono, much more readable for paragraphs). */
+  --display-px: 'Press Start 2P', monospace;
+  --body-px:    'VT323', monospace;
 
   /* =============================================================
      ATMOSPHERE — interpolated at runtime by setAtmosphere(progress)
@@ -507,11 +512,229 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
 }
 
 /* =============================================================
+   RETRO TYPOGRAPHY (v0.5.1) — pixel fonts on every menu screen, every
+   overlay, and the Quick-mode HUD. Adventure-mode in-game chrome stays on
+   the gothic Cinzel/IM-Fell set so the two modes read distinctly.
+
+   Implementation: rebind the four font CSS variables under each scoped
+   selector. Every existing `font-family: var(--display)` rule
+   automatically picks up the pixel font without further edits. Then a
+   handful of element-specific font-size overrides keep things readable
+   (Press Start 2P is ~1.5x chunkier per char than Cinzel).
+   ============================================================= */
+.menu-frame,
+.content-frame,
+.overlay-frame,
+body.mode-quick .hud,
+body.mode-quick .stage-banner {
+  --display:  var(--display-px);
+  --heading:  var(--display-px);
+  --smallcap: var(--body-px);
+  --body:     var(--body-px);
+}
+
+/* ---- main menu */
+.menu-frame .title-kicker      { font-size: 12px; letter-spacing: 0.32em; }
+.menu-frame .title-main        { font-size: clamp(48px, 7vw, 80px); letter-spacing: 0.04em; }
+.menu-frame .tagline           { font-size: 11px; line-height: 1.5; letter-spacing: 0.2em; }
+
+/* ---- buttons (Press Start 2P doesn't need text-transform; it's already mono-caps) */
+.menu-btn                      { font-size: 13px; letter-spacing: 0.06em; }
+.menu-btn.small                { font-size: 10px; }
+.menu-btn .btn-glyph           { font-size: 18px; }
+.menu-btn .btn-meta            { font-size: 9px; letter-spacing: 0.18em; padding: 4px 8px; }
+.menu-btn .btn-sub             { font-family: var(--body-px); font-size: 14px; letter-spacing: 0.06em; font-style: normal; line-height: 1; }
+
+/* ---- difficulty cards */
+.diff-card h3                  { font-size: 12px; letter-spacing: 0.05em; }
+.diff-card .diff-rank          { font-size: 22px; font-family: var(--display-px); }
+.diff-card ul                  { font-family: var(--body-px); font-size: 16px; line-height: 1.4; }
+.diff-card .diff-tag           { font-size: 9px; letter-spacing: 0.16em; padding: 4px 8px; }
+
+/* ---- section titles + ornament */
+.content-frame .section-title       { font-size: 22px; letter-spacing: 0.1em; }
+
+/* ---- tutorial */
+.tut-page h3                   { font-size: 13px; letter-spacing: 0.08em; }
+.tut-page p                    { font-family: var(--body-px); font-size: 18px; line-height: 1.45; }
+.tut-progress                  { font-family: var(--display-px); font-size: 10px; letter-spacing: 0.18em; }
+.tut-mini-card                 { font-family: var(--display-px); }
+
+/* ---- options */
+.opt-row                       { font-size: 12px; letter-spacing: 0.06em; }
+
+/* ---- credits */
+.credits-body                  { font-family: var(--body-px); font-size: 18px; line-height: 1.5; }
+.credits-body kbd              { font-family: var(--display-px); font-size: 10px; padding: 2px 6px; }
+.credits-body strong           { font-family: var(--display-px); font-size: 13px; letter-spacing: 0.06em; }
+
+/* ---- overlays (pause / defeat / victory) */
+.overlay-frame h2              { font-size: 22px; letter-spacing: 0.12em; }
+.overlay-frame .muted          { font-family: var(--body-px); font-size: 16px; }
+.overlay-frame .end-emblem     { font-size: 64px; }
+.overlay-frame .stat-label     { font-size: 9px; letter-spacing: 0.18em; }
+.overlay-frame .stat-value     { font-family: var(--display-px); font-size: 14px; }
+.overlay-frame .primary-btn,
+.overlay-frame .ghost-btn      { font-size: 11px; letter-spacing: 0.12em; padding: 14px 22px; }
+.overlay-frame .overlay-toggles label { font-family: var(--body-px); font-size: 16px; }
+
+/* ---- form-row buttons (Difficulty Confirm / Return) */
+.form-row .primary-btn,
+.form-row .ghost-btn,
+.back-corner                   { font-family: var(--display-px); font-size: 11px; letter-spacing: 0.12em; }
+
+/* ---- Quick-mode HUD: pixel labels but keep card values + action log readable */
+body.mode-quick .hud-label     { font-size: 10px; letter-spacing: 0.18em; }
+body.mode-quick .hud-value     { font-family: var(--display-px); font-size: 14px; }
+body.mode-quick .ctrl-btn      { font-size: 10px; letter-spacing: 0.1em; }
+body.mode-quick .ctrl-label    { font-size: 9px; }
+body.mode-quick .action-log    { font-family: var(--body-px); font-size: 16px; letter-spacing: 0.04em; }
+body.mode-quick .stage-banner  { font-size: 10px; letter-spacing: 0.22em; }
+
+/* ---- best-score ribbon at the bottom of main menu */
+.best-score                    { font-family: var(--display-px); font-size: 10px; letter-spacing: 0.22em; }
+
+/* =============================================================
+   RETRO CHROME (v0.5.1) — sharp corners + chunky pixel-style borders
+   on menu buttons, difficulty cards and overlays. CRT-style scanline
+   overlay on every menu/overlay frame for that 8-bit select-screen
+   atmosphere. Adventure-mode in-game chrome is untouched.
+   ============================================================= */
+.menu-frame, .content-frame, .overlay-frame {
+  border-radius: 0;
+}
+/* CRT scanlines: 2px alternating dark stripes, very low alpha so it doesn't
+   wash out content. Sits on top of frame content but below the corner border
+   pseudos. */
+.menu-frame::after,
+.content-frame::after,
+.overlay-frame::after {
+  background:
+    linear-gradient(135deg, rgba(232,200,120,0.06), transparent 30%, transparent 70%, rgba(232,200,120,0.06)),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0.18) 0,
+      rgba(0,0,0,0.18) 1px,
+      transparent      1px,
+      transparent      3px
+    );
+}
+
+/* Menu buttons — square corners + crisp pixel-edge inset highlight/shadow */
+.menu-btn {
+  border-radius: 0;
+  border-width: 2px;
+  box-shadow:
+    inset 2px 2px 0 rgba(232,200,120,0.22),
+    inset -3px -3px 0 rgba(0,0,0,0.7),
+    0 4px 0 rgba(0,0,0,0.5);
+}
+.menu-btn:hover {
+  box-shadow:
+    inset 2px 2px 0 rgba(255,210,150,0.36),
+    inset -3px -3px 0 rgba(0,0,0,0.8),
+    0 6px 0 rgba(0,0,0,0.6),
+    0 0 24px rgba(217,122,60,0.18);
+  transform: translateY(-2px);
+}
+.menu-btn:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 2px 2px 0 rgba(232,200,120,0.18),
+    inset -2px -2px 0 rgba(0,0,0,0.7),
+    0 0 0 rgba(0,0,0,0);
+}
+.menu-btn.primary {
+  box-shadow:
+    inset 2px 2px 0 rgba(255,210,150,0.45),
+    inset -3px -3px 0 rgba(30,12,4,0.85),
+    0 4px 0 rgba(0,0,0,0.55);
+}
+
+/* Difficulty cards — same pixel-edge treatment, sharper selected state */
+.diff-card {
+  border-radius: 0;
+  border-width: 2px;
+  box-shadow:
+    inset 2px 2px 0 rgba(232,200,120,0.14),
+    inset -2px -2px 0 rgba(0,0,0,0.6);
+}
+.diff-card.selected {
+  box-shadow:
+    inset 2px 2px 0 rgba(255,210,150,0.45),
+    inset -2px -2px 0 rgba(30,12,4,0.85),
+    0 0 0 2px var(--torch),
+    0 0 24px rgba(217,122,60,0.35);
+}
+.diff-tag, .opt-row, .toggle-track,
+.tut-mini-card, .diff-rank {
+  border-radius: 0;
+}
+
+/* Generic primary/ghost buttons (in form-rows + overlays) — square with
+   pixel-edge */
+.primary-btn, .ghost-btn, .ctrl-btn {
+  border-radius: 0;
+}
+.primary-btn {
+  border-width: 2px;
+  box-shadow:
+    inset 2px 2px 0 rgba(255,210,150,0.4),
+    inset -2px -2px 0 rgba(30,12,4,0.85),
+    0 3px 0 rgba(0,0,0,0.5);
+}
+.primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 2px 2px 0 rgba(255,210,150,0.55),
+    inset -2px -2px 0 rgba(30,12,4,0.9),
+    0 5px 0 rgba(0,0,0,0.6),
+    0 0 24px rgba(217,122,60,0.3);
+}
+.ghost-btn {
+  border-width: 2px;
+  box-shadow:
+    inset 1px 1px 0 rgba(232,200,120,0.16),
+    inset -1px -1px 0 rgba(0,0,0,0.5);
+}
+
+/* =============================================================
    MENU SCREEN
    ============================================================= */
 #screen-menu {
   align-items: center;
   justify-content: center;
+  position: absolute;   /* keep the .crypt-entrance backdrop scoped to this screen */
+}
+
+/* Crypt of the D20 entranceway — pixel-art SVG that sits BEHIND the menu
+   frame on the main menu (v0.5.1 retro pass). Anchored to the bottom of the
+   screen so the stairs descend off-frame. Pointer-events disabled so it
+   doesn't intercept clicks on menu buttons. The .menu-frame above gets a
+   higher z-index to layer cleanly on top.
+   ============================================================= */
+.crypt-entrance {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(960px, 110%);
+  height: min(78vh, 720px);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.92;
+  filter: drop-shadow(0 -10px 40px rgba(217,122,60,0.18));
+}
+.crypt-entrance svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;   /* preserve crisp pixel edges when scaled up */
+  image-rendering: crisp-edges;
+}
+#screen-menu .menu-frame {
+  position: relative;
+  z-index: 3;
 }
 
 .menu-frame {
@@ -607,6 +830,7 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
 .menu-btn {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 14px;
   padding: 14px 22px;
@@ -688,6 +912,21 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
 .menu-btn.primary .btn-glyph { color: var(--torch-bright); }
 
 .btn-label { flex: 1; }
+/* Optional secondary line on a menu button (Adventure / Quick Play describe
+   themselves under the title). Forces a new flex row via flex-basis: 100%. */
+.btn-sub {
+  flex-basis: 100%;
+  margin-left: 42px;        /* aligns with .btn-label start (28px glyph + 14px gap) */
+  margin-top: -2px;
+  font-family: var(--smallcap);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: none;
+  color: var(--bone-mid);
+  font-style: italic;
+}
+.menu-btn.primary .btn-sub { color: var(--torch-pale); }
 .btn-meta {
   font-family: var(--smallcap);
   font-size: 12px;
@@ -725,7 +964,7 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
   position: relative;
   animation: rise-in 0.6s ease-out;
 }
-.content-frame.wide   { width: min(880px, 94vw); }
+.content-frame.wide   { width: min(1040px, 94vw); }
 .content-frame.narrow { width: min(540px, 92vw); }
 
 .section-title {
@@ -750,12 +989,14 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
 }
 
 /* =============================================================
-   DIFFICULTY GRID
+   DIFFICULTY GRID — five tiers (Damned → Wanderer). On wider screens we
+   present them as a single horizontal row; tablets get a 3+2 wrap; mobile
+   stacks single-column (override is in the responsive blocks below).
    ============================================================= */
 .difficulty-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
   margin: 28px 0;
 }
 
@@ -764,7 +1005,7 @@ body[data-stage="throne"] .decor-ash { opacity: 1; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 22px 14px 18px;
+  padding: 18px 10px 14px;
   background:
     linear-gradient(180deg, rgba(40,24,14,0.7) 0%, rgba(20,10,6,0.85) 100%);
   border: 1px solid rgba(201,168,87,0.25);
@@ -1860,6 +2101,300 @@ body.cutscene-active .player-layer {
   90%      { transform: translate(2px, -1px); }
 }
 
+/* =============================================================
+   ADVENTURE-SCENE (v0.5.2) — Phase 4 shell. Replaces the .room-row of cards
+   with four physical "entity" blocks the trainer walks up to and interacts
+   with. Same state.room data, different presentation. Entities are
+   placeholder blocks for now (Phase 5 will replace with sprite art).
+   ============================================================= */
+/* Default: hide the adventure scene (Quick mode + menus). */
+.adventure-scene {
+  display: none;
+}
+
+/* Adventure mode: show the scene + hide the cards-row. */
+body.mode-adventure .adventure-scene {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 28px;
+  position: absolute;
+  bottom: 38%;
+  left: 50%;
+  transform: translateX(calc(-50% - 100px));
+  width: 78%;
+  max-width: 820px;
+  z-index: 4;
+  pointer-events: auto;
+}
+body.mode-adventure .room-row {
+  /* Cards stay in the DOM (the cutscene module still adds .cutscene-target /
+     .cutscene-dim classes to .card-slot for staging) but are visually gone. */
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* Quick mode: ensure the adventure scene is hidden (overrides any stray
+   inheritance) and cards remain interactive. */
+body.mode-quick .adventure-scene {
+  display: none;
+}
+
+/* Entity placeholder block — colored tile with value + suit glyph. The kind
+   is encoded as data-kind so the suit color is driven from CSS. */
+.adv-entity {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 5 / 7;
+  cursor: pointer;
+  background: linear-gradient(180deg, #2c1d10 0%, #1a0f08 100%);
+  border: 3px solid var(--gold-deep);
+  box-shadow:
+    inset 2px 2px 0 rgba(232,200,120,0.18),
+    inset -3px -3px 0 rgba(0,0,0,0.6),
+    0 8px 18px rgba(0,0,0,0.7);
+  font-family: var(--display-px);
+  color: var(--bone-pale);
+  transition: transform 0.18s ease-out, opacity 0.4s ease-out, box-shadow 0.18s;
+  overflow: hidden;
+}
+.adv-entity::before {
+  /* subtle scanline texture, pixel-y */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0.18) 0,
+      rgba(0,0,0,0.18) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  pointer-events: none;
+}
+.adv-entity:not(.empty):hover {
+  transform: translateY(-4px);
+  box-shadow:
+    inset 2px 2px 0 rgba(232,200,120,0.32),
+    inset -3px -3px 0 rgba(0,0,0,0.7),
+    0 12px 26px rgba(0,0,0,0.8),
+    0 0 28px rgba(217,122,60,0.35);
+}
+.adv-entity[data-kind="monster"] {
+  background: linear-gradient(180deg, #2a1a1a 0%, #100808 100%);
+  border-color: var(--blood-bright);
+}
+.adv-entity[data-kind="potion"] {
+  background: linear-gradient(180deg, #6a1c2a 0%, #2c0810 100%);
+  border-color: var(--heart-bright);
+}
+.adv-entity[data-kind="weapon"] {
+  background: linear-gradient(180deg, #1f3a5e 0%, #0a1628 100%);
+  border-color: var(--mystic-bright);
+}
+/* Sprite slot inside the entity tile — fills most of the tile and lets the
+   per-sprite `sz` percentage drive the visual size. Higher-value cards use
+   bigger sz (slime sz=32 vs dragon sz=100), so the same tile shows a small
+   slime or a sprawling dragon naturally. */
+.adv-entity .ent-sprite {
+  position: absolute;
+  inset: 6px 6px 18px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.adv-entity .ent-sprite svg {
+  /* svg's own width/height are percentages of the .ent-sprite container,
+     driven by each sprite's `sz` value (32%–100%). Larger card values draw
+     larger sprites so the visual size scales with the rules. */
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 3px 0 rgba(0,0,0,0.6));
+}
+/* Card-style corner badge (value + suit) tucked in the top-left so the
+   trainer can tell at a glance what each entity is. */
+.adv-entity .ent-corner {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  z-index: 2;
+  pointer-events: none;
+  text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
+}
+.adv-entity .ent-value {
+  font-family: var(--display-px);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  color: var(--bone-pale);
+}
+.adv-entity .ent-suit {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  margin-top: 2px;
+}
+.adv-entity[data-kind="monster"] .ent-suit { color: var(--bone-pale); }
+.adv-entity[data-kind="potion"]  .ent-suit { color: var(--heart-bright); }
+.adv-entity[data-kind="weapon"]  .ent-suit { color: var(--mystic-bright); }
+
+.adv-entity .ent-pedestal {
+  position: absolute;
+  bottom: -10px;
+  left: -8px;
+  right: -8px;
+  height: 14px;
+  background: linear-gradient(180deg, #4a3220 0%, #1a0f08 100%);
+  border: 2px solid var(--gold-deep);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.7);
+  z-index: -1;
+}
+.adv-entity.empty {
+  visibility: hidden;
+  pointer-events: none;
+}
+.adv-entity.consumed {
+  opacity: 0;
+  transform: scale(0.6) translateY(20px);
+  transition: transform 0.42s ease-in, opacity 0.42s ease-in;
+  pointer-events: none;
+}
+
+/* Walk-to-entity: the .player-layer translates toward the targeted entity.
+   The translation is set inline by JS (computed from the entity's bounding
+   box). The transition makes it look like a deliberate walk. The existing
+   body.cutscene-active player rule is overridden in adventure mode by the
+   inline style's specificity. */
+body.mode-adventure .player-layer {
+  transition: transform 0.5s cubic-bezier(0.42, 0, 0.4, 1);
+}
+
+/* Camera zoom-in intro — fires once when the user enters Adventure mode.
+   Scales the dungeon-arena from 80% with a slight blur, settles to 100%.
+   Adds the "you stepped through the entrance" feeling without a heavy
+   cinematic. */
+body.mode-adventure .dungeon-arena.zoom-intro {
+  animation: dungeon-zoom-in 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes dungeon-zoom-in {
+  0%   { transform: scale(0.78); filter: blur(6px) brightness(0.5); opacity: 0; }
+  60%  { transform: scale(1.04); filter: blur(0)   brightness(1.0); opacity: 1; }
+  100% { transform: scale(1);    filter: blur(0)   brightness(1.0); opacity: 1; }
+}
+
+/* Room transition: brief fade between rooms while refillRoom() is running. */
+body.mode-adventure .adventure-scene.room-transition {
+  animation: adv-room-fade 0.7s ease-in-out both;
+}
+@keyframes adv-room-fade {
+  0%   { opacity: 1; }
+  40%  { opacity: 0; transform: translateX(calc(-50% - 100px)) translateY(-30px); }
+  60%  { opacity: 0; transform: translateX(calc(-50% - 100px)) translateY(30px); }
+  100% { opacity: 1; }
+}
+
+/* Treasure room (deck empty + room cleared in adventure mode): a "scene" that
+   layers on top of the arena before the victory overlay fires. */
+.treasure-room {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  z-index: 30;
+  background: radial-gradient(ellipse at 50% 70%, rgba(232,200,120,0.18) 0%, rgba(6,3,10,0.95) 70%);
+  pointer-events: none;
+  animation: treasure-rise 1.6s ease-out both;
+}
+body.mode-adventure .treasure-room.active {
+  display: flex;
+}
+.treasure-room .treasure-pile {
+  width: 360px;
+  height: 270px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 0 36px rgba(232,200,120,0.7));
+  animation: treasure-shimmer 2.4s ease-in-out infinite;
+}
+.treasure-room .treasure-label {
+  margin-top: 22px;
+  font-family: var(--display-px);
+  font-size: 18px;
+  letter-spacing: 0.18em;
+  color: var(--gold-bright);
+  text-shadow: 0 2px 0 #000, 0 0 24px rgba(232,200,120,0.6);
+}
+.treasure-room .treasure-sub {
+  margin-top: 10px;
+  font-family: var(--body-px);
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  color: var(--bone-mid);
+  font-style: italic;
+}
+@media (max-width: 720px) {
+  .treasure-room .treasure-pile { width: 220px; height: 165px; }
+  .treasure-room .treasure-label { font-size: 14px; }
+  .treasure-room .treasure-sub { font-size: 15px; }
+}
+@keyframes treasure-rise {
+  0%   { opacity: 0; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes treasure-shimmer {
+  0%, 100% { transform: translateY(0)    rotate(-1deg); }
+  50%      { transform: translateY(-6px) rotate(1deg); }
+}
+
+/* =============================================================
+   MODE: QUICK PLAY — strips trainer + dungeon decor down to a clean card-game
+   presentation. The atmosphere/HP/cards/log all stay; everything that's
+   "extra bulk" (player sprite, weapon strap, dungeon door, archways, torches,
+   cobwebs, stage banner) is hidden. Cutscene bypass is wired in JS — see
+   Cutscene.play(). The .room-row also drops its HP-panel offset because
+   without the player at bottom-left the visual center reads better as the
+   true horizontal center. body.mode-adventure leaves everything as-is.
+   ============================================================= */
+body.mode-quick .player-layer,
+body.mode-quick .player-weapon,
+body.mode-quick .dungeon-door,
+body.mode-quick .archway,
+body.mode-quick .cobweb,
+body.mode-quick .torch,
+body.mode-quick .stage-banner {
+  display: none !important;
+}
+/* In adventure mode the room-row is shifted left to compensate for the right
+   HP panel (so the cards visually center over the play area). With no trainer
+   sprite, that bias just looks off — recenter the row on its true axis. */
+body.mode-quick .room-row {
+  transform: translateX(-50%);
+}
+/* Action log goes back to a simple bottom-left position (no need to dodge a
+   trainer that isn't there). */
+body.mode-quick .action-log {
+  left: 22px;
+  transform: none;
+  text-align: left;
+  align-items: flex-start;
+  max-width: 38%;
+}
+/* And the peek strip can return to the bottom-right where it was historically. */
+body.mode-quick .peek-strip {
+  top: auto;
+  right: 22px;
+  bottom: 22px;
+}
+
 /* Weapon trail — the equipped weapon sprite composited at player's hand,
    with archetype-specific motion paths. Spawned in JS, lives only during
    the active cutscene. */
@@ -2540,6 +3075,8 @@ body.cutscene-active .player-layer {
   .menu-btn { font-size: 16px; padding: 12px 16px; }
   .player-layer { width: 170px; height: 170px; }
   .dungeon-arena { padding: 20px 180px 20px 14px; }
+  /* 5 columns get cramped on tablets — wrap to 3, last row of 2. */
+  .difficulty-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 /* =============================================================
@@ -2553,6 +3090,21 @@ body.cutscene-active .player-layer {
   /* No card tooltips on mobile — there's no hover gesture, and tap-then-show
      is awkward when the same tap also resolves the card. */
   .tooltip { display: none !important; }
+
+  /* Adventure-scene mobile layout: drop the -100px HP-panel offset (panel is
+     stacked below on mobile, not to the right). Position entities just below
+     the stage-banner like the cards row, gap-tight. */
+  body.mode-adventure .adventure-scene {
+    bottom: auto;
+    top: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 12px);
+    max-width: 100%;
+    gap: 6px;
+  }
+  .adv-entity .ent-glyph { font-size: 22px; margin-bottom: 4px; }
+  .adv-entity .ent-value { font-size: 16px; }
 
   /* Menu / sub-screens scroll on mobile — without this, content taller than the
      viewport (Difficulty's 4 stacked cards, long Tutorial pages) gets clipped at

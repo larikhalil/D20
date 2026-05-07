@@ -17,11 +17,29 @@ const SUIT = {
 const VALUE_LABEL = { 2:'2',3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9',10:'10',11:'J',12:'Q',13:'K',14:'A' };
 const VALUE_NAME  = { 2:'Two',3:'Three',4:'Four',5:'Five',6:'Six',7:'Seven',8:'Eight',9:'Nine',10:'Ten',11:'Jack',12:'Queen',13:'King',14:'Ace' };
 
+// =============================================================
+// DIFFICULTY — five tiers from Damned (hardest, default) to Wanderer (easiest)
+// =============================================================
+// Each easier tier ADDS ONE eased mechanic AND adds back one suit-rank of red
+// royals to the deck. The hardest tier is the design baseline; everything
+// downstream eases from there. Mechanic ladder:
+//   Damned     — 3 flees, no flee mid-room, no undo, no peek, deck = 44
+//   Vanquisher — 3 flees, FLEE-MID enabled,  no undo, no peek, deck +red J = 46
+//   Adventurer — 3 flees, flee-mid,          UNDO,    no peek, deck +red Q = 48
+//   Apprentice — 3 flees, flee-mid,          undo,    PEEK,    deck +red K = 50
+//   Wanderer   — UNLIMITED flees, all eases,                   deck +red A = 52
+// `fleeAfterPick` controls whether you may flee a room after at least one card
+// has been resolved (any room slot is null). When false, you can only flee an
+// untouched 4-card room.
+// `redRoyals` is the highest red royal value included (10 = none, 11 = +red
+// Jacks, 12 = +red Queens, 13 = +red Kings, 14 = +red Aces / full deck).
+// `skips: Infinity` for unlimited flees; the HUD renders that as "∞".
 const DIFFICULTY = {
-  easy:      { hp: 20, skips: 3, undo: true,  peek: true,  label: 'Easy',      mult: 1.0 },
-  normal:    { hp: 20, skips: 1, undo: true,  peek: false, label: 'Normal',    mult: 1.5 },
-  hard:      { hp: 20, skips: 0, undo: true,  peek: false, label: 'Hard',      mult: 2.5 },
-  nightmare: { hp: 18, skips: 0, undo: false, peek: false, label: 'Nightmare', mult: 4.0 }
+  damned:     { hp: 20, skips: 3,        undo: false, peek: false, fleeAfterPick: false, redRoyals: 10, label: 'Damned',     mult: 4.0 },
+  vanquisher: { hp: 20, skips: 3,        undo: false, peek: false, fleeAfterPick: true,  redRoyals: 11, label: 'Vanquisher', mult: 2.5 },
+  adventurer: { hp: 20, skips: 3,        undo: true,  peek: false, fleeAfterPick: true,  redRoyals: 12, label: 'Adventurer', mult: 1.5 },
+  apprentice: { hp: 20, skips: 3,        undo: true,  peek: true,  fleeAfterPick: true,  redRoyals: 13, label: 'Apprentice', mult: 1.0 },
+  wanderer:   { hp: 20, skips: Infinity, undo: true,  peek: true,  fleeAfterPick: true,  redRoyals: 14, label: 'Wanderer',   mult: 0.7 }
 };
 
 const STORAGE_KEY = 'crypt_d20_save_v1';
@@ -357,17 +375,21 @@ const Audio = (() => {
 // -----------------------------------------------------------
 // DECK
 // -----------------------------------------------------------
-function buildDeck() {
-  // Spades & Clubs: 2..14 (full)
-  // Hearts & Diamonds: 2..10 (red royals + Aces removed)
+function buildDeck(diffKey) {
+  // Spades & Clubs always full (2..14).
+  // Hearts & Diamonds 2..N where N = DIFFICULTY[diffKey].redRoyals
+  // (10 = no red royals, 11 = +Jacks, 12 = +Queens, 13 = +Kings, 14 = full).
+  // Sizes: 44 / 46 / 48 / 50 / 52 across the five tiers.
+  const cfg = DIFFICULTY[diffKey] || DIFFICULTY.damned;
+  const redCap = cfg.redRoyals;
   const deck = [];
   for (const suit of ['spades','clubs']) {
     for (let v=2; v<=14; v++) deck.push({ suit, value: v });
   }
   for (const suit of ['hearts','diamonds']) {
-    for (let v=2; v<=10; v++) deck.push({ suit, value: v });
+    for (let v=2; v<=redCap; v++) deck.push({ suit, value: v });
   }
-  return deck; // 13+13+9+9 = 44
+  return deck;
 }
 
 function shuffle(arr) {
@@ -382,7 +404,13 @@ function shuffle(arr) {
 // STATE
 // -----------------------------------------------------------
 const state = {
-  difficulty: 'normal',
+  // 'adventure' = full staging (trainer sprite, cutscenes, room decor).
+  // 'quick'     = card-only — no character, no cutscenes, minimal chrome.
+  // The card rules and difficulty model are identical between modes; only the
+  // presentation layer differs. Set by the menu's [data-mode] buttons before
+  // newGame() is called; persisted under save.lastMode.
+  mode: 'adventure',
+  difficulty: 'damned',
   hp: 20,
   maxHp: 20,
   deck: [],
@@ -944,7 +972,18 @@ const Cutscene = (() => {
 
   function play(slotIndex, action, callbacks) {
     if (active) return;
-    if (!state.options.anim) { _bypass(slotIndex, action, callbacks); return; }
+    // Quick Play has no trainer / weapon-trail / dash; resolve immediately with
+    // the lightweight card-only feedback (flash + shake) reused from anim-off.
+    if (state.mode === 'quick' || !state.options.anim) {
+      _bypass(slotIndex, action, callbacks);
+      return;
+    }
+    // Adventure mode: trainer physically walks up to the entity. Inline
+    // transform is set BEFORE Player.play(dashIn) is invoked below so the CSS
+    // transition kicks in during the dash animation.
+    if (state.mode === 'adventure') {
+      walkPlayerToEntity(slotIndex);
+    }
 
     const timing = CUTSCENE_TIMINGS[action.archetype] || CUTSCENE_TIMINGS.bare;
     active = true;
@@ -1024,6 +1063,9 @@ const Cutscene = (() => {
     if (weaponTrailEl) { weaponTrailEl.remove(); weaponTrailEl = null; }
     qsa('.weapon-trail').forEach(el => el.remove());
     qsa('.hit-spark').forEach(el => el.remove());
+    // Adventure mode: walk the trainer back to home position. The same CSS
+    // transition that animated the walk-out animates the walk-back.
+    if (state.mode === 'adventure') returnPlayerHome();
     active = false;
     pending = null;
     if (callbacks.onEnd) callbacks.onEnd();
@@ -1059,49 +1101,53 @@ function monsterMotion(value) {
 
 const MONSTER_PX = {
 
-  // 2 — RAT  (small, lower band)
-  2: { sz: 38, c: { '#':'#0a0604','o':'#7a5530','O':'#a47540','d':'#3a1f10','e':'#ff3030','t':'#5a3818' },
+  // 2 — SLIME  (small green blob, low to ground, single eye + glint)
+  // v0.5.3 redraw — was RAT. Lowest-tier monster on the user's bestiary
+  // ladder. Sits at the bottom of the 16x16 frame so larger sprites stay
+  // anchored to the same ground-line.
+  2: { sz: 32, c: { '#':'#0a1208','O':'#84d058','o':'#5a9028','d':'#2a4a14','e':'#1a0a04','w':'#f4ebd0' },
     g: [
       '................',
       '................',
       '................',
       '................',
-      '....##.....##...',
-      '...#oO#...#oO#..',
-      '....##.....##...',
-      '...#######dttttt',
-      '..#ooOoOoO#.....',
-      '.#oeoOoOoOo###..',
-      '#OoOoOoOoOoOoOo#',
+      '................',
+      '................',
+      '......######....',
+      '....##OOOOOO##..',
+      '...#OoOoOoOoOO#.',
+      '..#OoOoOweOoOoO#',
+      '.#OoOoOoOoOoOoOd',
+      '#OoOoOoOoOoOoOod',
+      '#oOoOoOoOoOoOoOd',
+      '#OoOoOoOoOoOoOdd',
+      '################',
+      '................'
+    ]},
+
+  // 3 — KOBOLD  (lizardfolk, scaled, tail, horns)
+  // v0.5.3 — moved from old slot 5 unchanged.
+  3: { sz: 46, c: { '#':'#0a0604','o':'#a04020','O':'#d05a30','d':'#5a1a08','e':'#ffe040','h':'#3a1a08','t':'#fff' },
+    g: [
+      '................',
+      '....#.....#.....',
+      '.h.#h#...#h#....',
+      '.#h#oOh.#oOh#...',
+      '..##oOOoOOoO##..',
+      '..#oeoOoOoeoO#..',
+      '..#oOttttttoO#..',
+      '...#oOoOoOoO#...',
+      '..#OOoOOoOoOO#..',
       '.#OoOoOoOoOoOo#.',
-      '..#OoOoOoOoOO#..',
-      '..##..##..##....',
-      '................',
-      '................'
+      '#oOoOoOoOoOoOoOd',
+      '#oOoOoOoOoOoOd##',
+      '.#oOoOoOoOoOdd..',
+      '..#####OoOO#....',
+      '....#o#####.....',
+      '....#o#.#o#.....'
     ]},
 
-  // 3 — BAT  (wings spread, hovering)
-  3: { sz: 46, c: { '#':'#0a0604','o':'#3a2818','O':'#5a3a22','d':'#1a0e08','e':'#ff3030','f':'#fff' },
-    g: [
-      '................',
-      '................',
-      '..##.........##.',
-      '.#oo#.......#oo#',
-      '#oOOo##...##oOOo',
-      'doOoOOoo#oodoOOd',
-      'd#oOoOoOoOoOoO#d',
-      '..#oOoOoOoOoO#..',
-      '..#o#.#oo#.#o#..',
-      '...##oo##oo##...',
-      '....#OoOOoO#....',
-      '....#oeooee#....',
-      '.....#fofo#.....',
-      '......####......',
-      '................',
-      '................'
-    ]},
-
-  // 4 — GOBLIN  (hunched, club, big nose)
+  // 4 — GOBLIN  (hunched, club, big nose) — kept from prior roster
   4: { sz: 54, c: { '#':'#0a0604','o':'#5e7a3a','O':'#84a050','d':'#2a3818','e':'#ffe040','n':'#7a4824','a':'#3a2616','w':'#fff' },
     g: [
       '................',
@@ -1122,25 +1168,26 @@ const MONSTER_PX = {
       '.......#.#......'
     ]},
 
-  // 5 — KOBOLD  (lizardfolk, scaled, tail, horns)
-  5: { sz: 56, c: { '#':'#0a0604','o':'#a04020','O':'#d05a30','d':'#5a1a08','e':'#ffe040','h':'#3a1a08','t':'#fff' },
+  // 5 — ORC  (tusked warrior with axe)
+  // v0.5.3 — moved from old slot 8 unchanged.
+  5: { sz: 60, c: { '#':'#0a0604','o':'#4a6040','O':'#6e8a58','d':'#1a2818','e':'#ff5050','w':'#fff','t':'#fff5d4','a':'#3a2616','m':'#aaaaaa','b':'#5a3818' },
     g: [
       '................',
-      '....#.....#.....',
-      '.h.#h#...#h#....',
-      '.#h#oOh.#oOh#...',
-      '..##oOOoOOoO##..',
-      '..#oeoOoOoeoO#..',
-      '..#oOttttttoO#..',
-      '...#oOoOoOoO#...',
-      '..#OOoOOoOoOO#..',
-      '.#OoOoOoOoOoOo#.',
-      '#oOoOoOoOoOoOoOd',
-      '#oOoOoOoOoOoOd##',
-      '.#oOoOoOoOoOdd..',
-      '..#####OoOO#....',
-      '....#o#####.....',
-      '....#o#.#o#.....'
+      '......####......',
+      '....##oOOOo##...',
+      '...#oOOOOOOOo#..',
+      'd##oOoOOOOOOOo#a',
+      'd#OoOeOoeOOOOO#a',
+      '##oOOddOddOOoO#a',
+      '..#OoOoooOoOoO#a',
+      '..#OOttoootOOO#a',
+      '...#OoOoooOoO#aa',
+      '..#OOoOoOoOoOO#a',
+      '.#oOoOoOoOoOoOo#',
+      '.#oOoOoOoOoOoOo#',
+      '.#OoOoOoOoOoOoO#',
+      '..##OOoOoOOOO##.',
+      '...##........##.'
     ]},
 
   // 6 — SKELETON WARRIOR
@@ -1185,25 +1232,26 @@ const MONSTER_PX = {
       '...c##....##c...'
     ]},
 
-  // 8 — ORC  (tusked warrior with axe)
-  8: { sz: 70, c: { '#':'#0a0604','o':'#4a6040','O':'#6e8a58','d':'#1a2818','e':'#ff5050','w':'#fff','t':'#fff5d4','a':'#3a2616','m':'#aaaaaa','b':'#5a3818' },
+  // 8 — WRAITH  (hooded ghost) — moved from old slot 11 unchanged.
+  // v0.5.3 — fits between ghoul (7) and troll (9) on the new ladder.
+  8: { sz: 70, c: { '#':'#0a0604','o':'#3a2840','O':'#5a4060','d':'#10081a','e':'#88ccff','m':'#aabbcc','M':'#ffffff','b':'#5a8fbf' },
     g: [
       '................',
       '......####......',
       '....##oOOOo##...',
-      '...#oOOOOOOOo#..',
-      'd##oOoOOOOOOOo#a',
-      'd#OoOeOoeOOOOO#a',
-      '##oOOddOddOOoO#a',
-      '..#OoOoooOoOoO#a',
-      '..#OOttoootOOO#a',
-      '...#OoOoooOoO#aa',
-      '..#OOoOoOoOoOO#a',
-      '.#oOoOoOoOoOoOo#',
-      '.#oOoOoOoOoOoOo#',
-      '.#OoOoOoOoOoOoO#',
-      '..##OOoOoOOOO##.',
-      '...##........##.'
+      '...#oOoOoOOoO#..',
+      '..#oOoddooddoOo#',
+      '..#oOdeeeeeedOob',
+      '..#oOdMeeeeMdOob',
+      '..#oOdeeeeeedOob',
+      '..#oOoOoOoOoOoob',
+      '...#OoOoOoOoObb#',
+      '...#oOoOoObOOOO#',
+      '....##OoOoOoOO#.',
+      '...#.##.##.##.#.',
+      '..#.##.##.##.##.',
+      '...#..#..#..#...',
+      '................'
     ]},
 
   // 9 — TROLL  (huge lumpy)
@@ -1227,88 +1275,96 @@ const MONSTER_PX = {
       '....##....##....'
     ]},
 
-  // 10 — WYVERN  (small dragon, wings + tail)
-  10: { sz: 82, c: { '#':'#0a0604','o':'#6a2a40','O':'#a04060','d':'#1a0a14','e':'#ffd040','w':'#3a1a24','t':'#fff','y':'#ffaa30' },
+  // 10 — MINOTAUR  (bull-headed warrior, sweeping horns, broad shoulders)
+  // v0.5.3 redraw — was WYVERN. Top-of-numerics on the new ladder; hulking
+  // silhouette signals the turn from "men" to "monsters" at J+.
+  10: { sz: 78, c: { '#':'#0a0604','o':'#5a3018','O':'#8a4a26','d':'#2a1408','e':'#ff5050','t':'#f4ebd0','b':'#3a1f10','m':'#aaa' },
     g: [
       '................',
-      '....#####.......',
-      '...#oOOOO#####..',
-      'w##oOOoOoOoOOo#.',
-      'w#oOoOoeOoOoOOo#',
-      'w#OoOteOoOoOOOoo',
-      'w#oo##OoOOOOOOOo',
-      'ww##.##oOOOOOOO#',
-      '......##oOOOOO##',
-      '......##OoOOO##.',
-      '......#oOOOO#yyy',
-      '....##oOoOoO###y',
-      '...#OoOoOoOoO#yy',
-      '..#oOoOoOoOoO#y.',
-      '..#####OoO#####.',
-      '......##.##.....'
+      '.tt..........tt.',
+      'ttt#.######..#tt',
+      '#tt##oOOOOo##tt#',
+      '##oOOoOoOoOOOo##',
+      '#oOoOeOoOeOoOOo#',
+      '#oOoOdOttOdOOOo#',
+      '#oOoOOttttOoOoO#',
+      '##oOooOOOOoooO##',
+      '##oOoOoOoOoOoO##',
+      '#oOoOoOoOoOoOoO#',
+      '#oOoOoOoOoOoOoO#',
+      '#OoOoOoOoOoOoOo#',
+      '##OoOoOoOoOoOO##',
+      '..##bb#####bb##.',
+      '..##bb..bb.##bb.'
     ]},
 
-  // 11 (J) — WRAITH  (hooded ghost)
-  11: { sz: 78, c: { '#':'#0a0604','o':'#3a2840','O':'#5a4060','d':'#10081a','e':'#88ccff','m':'#aabbcc','M':'#ffffff','b':'#5a8fbf' },
+  // 11 (J) — MIMIC  (treasure chest with teeth + tongue + glowing eye)
+  // v0.5.3 redraw — was WRAITH. Classic dungeon-crawler trickster: looks like
+  // a chest, opens up to reveal jagged teeth and a long tongue.
+  11: { sz: 72, c: { '#':'#0a0604','o':'#5a3818','O':'#8a5828','d':'#2a1408','t':'#fff5d4','e':'#ff3030','y':'#c9a857','w':'#fff','r':'#a02428' },
     g: [
       '................',
+      '................',
+      '..############..',
+      '.#OoOyyyyyyOoO#.',
+      '.#OoOttttttOoO#.',
+      '.#Otetwttwtetto#',
+      '.#OttttreettttO#',
+      '.#Ottwwrrrrwwtt#',
+      '.#OttdddrrdddtO#',
+      '.#OoOoyyyyOoOoO#',
+      '.#OoOoOoOoOoOoO#',
+      '.#OoOoOoOyOoOoO#',
+      '.#OoOoOoOoOoOoO#',
+      '.##############.',
+      '..##.bb..bb.##..',
+      '...........#....'
+    ]},
+
+  // 12 (Q) — SUCCUBUS  (winged demon, horns, hourglass silhouette)
+  // v0.5.3 redraw — was HAG. Sharp-tipped wings flank the figure, small horns
+  // on the head, slender torso narrowing to hips for the classic silhouette.
+  12: { sz: 80, c: { '#':'#0a0604','o':'#7a2a4a','O':'#a83a66','d':'#3a0a1c','e':'#ffe040','t':'#f4d8b4','w':'#5a1830','y':'#c9a857','b':'#3a1620' },
+    g: [
+      '...##.....##....',
+      '..#oo#...#oo#...',
+      '#wwoOo#.#oOoww#.',
+      '#wwoOoo#oOoOoww#',
+      '#wwOoOoOoOoOoww#',
+      '##oOttooootOoO##',
+      '.#OttoeooeotOO#.',
+      '.#OttoddddotOO#.',
+      '.#OoOoOttoOoOO#.',
+      '.#OoOoOoOoOoOO#.',
+      '..#OoOoOoOoOoO#.',
+      '..#OoOoOoOoOO#..',
+      '...#OoOoOoOO#...',
+      '...#OoOoOoOO#...',
+      '....#bb..bb#....',
+      '....##....##....'
+    ]},
+
+  // 13 (K) — OGRE  (huge brute, club, slack jaw, single eye)
+  // v0.5.3 redraw — was DEMON LORD. Squat, broad-shouldered, with a massive
+  // club resting against the body. Reads as "big stupid muscle".
+  13: { sz: 88, c: { '#':'#0a0604','o':'#5a6a2a','O':'#7e9040','d':'#1a2a08','e':'#ffe040','t':'#f4ebd0','b':'#3a1f10','y':'#c9a857','w':'#fff' },
+    g: [
       '......####......',
       '....##oOOOo##...',
-      '...#oOoOoOOoO#..',
-      '..#oOoddooddoOo#',
-      '..#oOdeeeeeedOob',
-      '..#oOdMeeeeMdOob',
-      '..#oOdeeeeeedOob',
-      '..#oOoOoOoOoOoob',
-      '...#OoOoOoOoObb#',
-      '...#oOoOoObOOOO#',
-      '....##OoOoOoOO#.',
-      '...#.##.##.##.#.',
-      '..#.##.##.##.##.',
-      '...#..#..#..#...',
-      '................'
-    ]},
-
-  // 12 (Q) — HAG / WITCH  (pointy hat, staff with skull)
-  12: { sz: 76, c: { '#':'#0a0604','o':'#4a2a4a','O':'#6e3e6e','d':'#10081a','s':'#90a878','S':'#b4cc94','e':'#ffaa30','b':'#e8d8b4','g':'#88ff44','w':'#fff','y':'#c9a857' },
-    g: [
-      '..........#.....',
-      '.........###....',
-      '........##o##...',
-      '.......##oOo##..',
-      '......##oOoOo##.',
-      '.....##oOoOoOo##',
-      '....#####ddd####',
-      '...#sSSsSSsSSs#.',
-      '...#sSeSwwSeSs#.',
-      '....#sSwwSwSs#by',
-      '....#sSSSSSs#bb.',
-      '...#oOoOoOoOoo#.',
-      '..#oOoOoOoOoOOo#',
-      '..#oOoOoOoOoOOo#',
-      '..#OoOoO##OoOoO#',
-      '...##.##..##.##.'
-    ]},
-
-  // 13 (K) — DEMON LORD  (horns, wings, sword, crown)
-  13: { sz: 88, c: { '#':'#0a0604','o':'#a02020','O':'#d04030','d':'#3a0808','e':'#ffe040','y':'#ffaa30','w':'#5a1010','m':'#c0c0c0','M':'#ffffff','c':'#c9a857','b':'#3a2616' },
-    g: [
-      '..d............d',
-      '.dd...####....dd',
-      'wddd.#cccc#..dddw',
-      'wddd#cccccc#dddww',
-      'ww##oOOOOOOo##ww',
-      'w#oOeOOOOeOoOoo#',
-      'w#oOOddOddOOoOO#',
-      '##oOooOOOooOoOO#',
-      '#oOoOoOoOoOoOo##',
-      '#oOoOoOoOoOoOOww',
-      '##oOoOoOoOoOOww.',
-      '.##OoOoOoOoO##..',
-      '...##OoOoO##.mb.',
-      '....##OoO##.mb..',
-      '......###...mb..',
-      '......####.bbb..'
+      '...#oOOOOOOOo#..',
+      '..#oOoOOOOOOOo#.',
+      '##oOoeOdttOOOoO#',
+      '#oOoOdOttttOoOO#',
+      '#OoOoOOttbbOoOOb',
+      '#oOoOoOoOoOoOob#',
+      '#oOoOoOoOoOoOob#',
+      '#oOoOoOoOoOoOob#',
+      '#OoOoOoOoOoOoOb#',
+      '#oOoOoOoOoOoOoOb',
+      '#OoOoOoOoOoOoOob',
+      '##OoOoOoOoOoOO##',
+      '..##bb#####bb##.',
+      '..##bb..bb.##bb.'
     ]},
 
   // 14 (A) — ANCIENT DRAGON  (full beast)
@@ -1377,50 +1433,31 @@ const WEAPON_PX = {
       '................'
     ]},
 
-  // 4 — HAND AXE
-  4: { sz: 50, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','h':'#5a3a18','H':'#3a2616','d':'#3a4a5a','y':'#c9a857' },
+  // 4 — SCIMITAR  (curved single-edged blade, hilt at bottom-left)
+  // v0.5.3 redraw — was HAND AXE. Curve sweeps up-right from the hilt.
+  4: { sz: 50, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
     g: [
       '................',
-      '................',
-      '....##..........',
-      '...#bB##........',
-      '..#bBBBBB#......',
-      '.#bBBBBdBb#.....',
-      '.#bBBBdBb#......',
-      '..#bBdBb#.......',
-      '....#hH#........',
-      '....#hH#........',
-      '....#hH#........',
-      '....#hH#........',
-      '....#hH#........',
-      '....#hH#........',
-      '....#yy#........',
-      '................'
+      '............##..',
+      '...........#bB#.',
+      '..........#bBBb#',
+      '.........#bBBBb#',
+      '........#bBBBb#.',
+      '.......#bBBBb#..',
+      '......#bBBBb#...',
+      '.....#bBBb#.....',
+      '....#bBBb#......',
+      '...#bBb#........',
+      '..#bb#..........',
+      '..#y##..........',
+      '..#hH#..........',
+      '..#hH#..........',
+      '..#yy#..........'
     ]},
 
-  // 5 — MACE  (flanged head)
-  5: { sz: 56, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','d':'#3a4a5a','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
-    g: [
-      '................',
-      '......##........',
-      '.....#bB#.......',
-      '....##bBB##.....',
-      '...#bdBBBdb#....',
-      '..#bBBBBBBBb#...',
-      '..#dBBBbBBBd#...',
-      '...#bBBBBBb#....',
-      '....##bBB##.....',
-      '......#hH#......',
-      '......#hH#......',
-      '......#hH#......',
-      '......#hH#......',
-      '......#hH#......',
-      '.....#yyyy#.....',
-      '................'
-    ]},
-
-  // 6 — LONG SWORD
-  6: { sz: 64, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','h':'#5a3a18','H':'#3a2616','y':'#c9a857','r':'#c52828' },
+  // 5 — LONG SWORD  (slim straight blade, value-mid)
+  // v0.5.3 — moved from old slot 6.
+  5: { sz: 56, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','h':'#5a3a18','H':'#3a2616','y':'#c9a857','r':'#c52828' },
     g: [
       '......##........',
       '......#bB#......',
@@ -1437,6 +1474,29 @@ const WEAPON_PX = {
       '......#hH#......',
       '.....#yyrr#.....',
       '......#yy#......',
+      '................'
+    ]},
+
+  // 6 — MACE  (flanged head)
+  // v0.5.3 — moved from old slot 5. Pairs with 9 GREAT MACE: same family,
+  // scaled up at the top of the ladder.
+  6: { sz: 64, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','d':'#3a4a5a','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
+    g: [
+      '................',
+      '......##........',
+      '.....#bB#.......',
+      '....##bBB##.....',
+      '...#bdBBBdb#....',
+      '..#bBBBBBBBb#...',
+      '..#dBBBbBBBd#...',
+      '...#bBBBBBb#....',
+      '....##bBB##.....',
+      '......#hH#......',
+      '......#hH#......',
+      '......#hH#......',
+      '......#hH#......',
+      '......#hH#......',
+      '.....#yyyy#.....',
       '................'
     ]},
 
@@ -1482,11 +1542,35 @@ const WEAPON_PX = {
       '................'
     ]},
 
-  // 9 — GREATSWORD  (very long, fancy)
-  9: { sz: 86, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','h':'#5a3a18','H':'#3a2616','y':'#c9a857','r':'#7eb8e8' },
+  // 9 — GREAT MACE  (oversized flanged head, spike top, broad pommel)
+  // v0.5.3 redraw — was GREATSWORD. Bigger sibling of slot 6 MACE — same
+  // weapon family, dramatically scaled.
+  9: { sz: 86, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','d':'#3a4a5a','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
+    g: [
+      '......####......',
+      '....##bBBb##....',
+      '...#bBBBBBBb#...',
+      '..#bBBBBBBBBb#..',
+      '..#bBBBdBdBBb#..',
+      '..#dBBBBBBBBd#..',
+      '..#bBBBdBdBBb#..',
+      '..#bBBBBBBBBb#..',
+      '...#bBBBBBBb#...',
+      '....##bBBb##....',
+      '......#hH#......',
+      '......#hH#......',
+      '......#hH#......',
+      '......#hH#......',
+      '......#hH#......',
+      '.....#yyyy#.....'
+    ]},
+
+  // 10 — GREAT SWORD  (very long blade, ornate fuller, jewelled pommel)
+  // v0.5.3 — was GREAT AXE; replaced with the longer-blade design from old
+  // slot 9 (the original GREATSWORD), now extended further.
+  10: { sz: 96, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','d':'#3a4a5a','h':'#5a3a18','H':'#3a2616','y':'#c9a857','r':'#7eb8e8' },
     g: [
       '......##........',
-      '.....#bB#.......',
       '......#bB#......',
       '......#bB#......',
       '......#bB#......',
@@ -1494,34 +1578,14 @@ const WEAPON_PX = {
       '......#bB#......',
       '......#bB#......',
       '......#bB#......',
-      '..#yyyyBByyy#...',
+      '......#bB#......',
+      '......#bB#......',
+      '..#yyyyBByyyy#..',
       '.##.##.##.##.##.',
-      '......#hH#......',
       '......#hH#......',
       '......#hH#......',
       '....#yyrryy#....',
       '....##.##.##....'
-    ]},
-
-  // 10 — GREAT AXE  (massive double-bladed)
-  10: { sz: 96, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','d':'#3a4a5a','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
-    g: [
-      '......##........',
-      '....######......',
-      '..####bBBb####..',
-      '.#bBb#bBBb#bBb#.',
-      '#bBBb#bBBb#bBBb#',
-      '#dBBBbBBBBbBBBd#',
-      '#bBBBdBBBBdBBBb#',
-      '#dBBBBBBBBBBBBd#',
-      '#bBBBBBBBBBBBBb#',
-      '.#dBBBBBBBBBBd#.',
-      '..#bBBBBBBBBb#..',
-      '...#bBBBBBBb#...',
-      '....#######.....',
-      '......#hH#......',
-      '......#hH#......',
-      '.....#yyyy#.....'
     ]}
 };
 
@@ -1814,6 +1878,67 @@ function renderRoom() {
     }
   }
   for (let i = 0; i < 4; i++) renderCard(i);
+  renderAdventureScene();
+}
+
+// Adventure-mode entity scene (v0.5.2 → v0.5.3). Same state.room data as the
+// cards, just rendered as physical "encounter" tiles the trainer walks up to.
+// v0.5.3 embeds the actual monster / weapon / potion pixel-art sprite inside
+// each entity tile (svgIllustration), scaled per card value (sprite's own `sz`
+// percentage drives this — bigger value = bigger sprite). Empty slots get the
+// .empty class so layout doesn't reflow when a card is consumed. Click
+// delegates to the same onCardClick handler the .card-slot uses.
+function renderAdventureScene() {
+  for (let i = 0; i < 4; i++) {
+    const el = document.getElementById('adv-entity-' + i);
+    if (!el) continue;
+    const card = state.room[i];
+    el.classList.remove('consumed');
+    if (!card) {
+      el.classList.add('empty');
+      el.removeAttribute('data-kind');
+      el.innerHTML = '';
+      continue;
+    }
+    el.classList.remove('empty');
+    const kind = SUIT[card.suit].kind;
+    el.dataset.kind = kind;
+    el.dataset.value = card.value;
+    el.innerHTML =
+      `<div class="ent-sprite">${svgIllustration(card)}</div>` +
+      `<div class="ent-corner">` +
+        `<span class="ent-value">${VALUE_LABEL[card.value]}</span>` +
+        `<span class="ent-suit">${SUIT[card.suit].glyph}</span>` +
+      `</div>` +
+      `<div class="ent-pedestal"></div>`;
+  }
+}
+
+// Walk-to-entity (adventure mode). Computes dynamically from the entity's
+// bounding box so we don't have to maintain hardcoded translates per slot.
+// Caller is the cutscene; the inline transform overrides the body.cutscene-active
+// rule's transform (specificity wins on inline). returnPlayerHome() clears it.
+function walkPlayerToEntity(slotIndex) {
+  if (state.mode !== 'adventure') return;
+  const player = document.getElementById('player-layer');
+  const entity = document.getElementById('adv-entity-' + slotIndex);
+  if (!player || !entity) return;
+  const playerRect = player.getBoundingClientRect();
+  const entityRect = entity.getBoundingClientRect();
+  // Stop ~80% of the way to the entity so the trainer faces it without
+  // overlapping. Subtle lift on Y so the figure reads as "approaching".
+  const dx = (entityRect.left + entityRect.width  / 2)
+           - (playerRect.left + playerRect.width  / 2);
+  const dy = (entityRect.top  + entityRect.height / 2)
+           - (playerRect.top  + playerRect.height / 2);
+  player.style.transform = `translate(${dx * 0.78}px, ${dy * 0.78}px) scale(1.12)`;
+  player.style.zIndex = '12';
+}
+function returnPlayerHome() {
+  const player = document.getElementById('player-layer');
+  if (!player) return;
+  player.style.transform = '';
+  player.style.zIndex = '';
 }
 
 // Update outcome badges & locked-out state on existing room cards without re-creating them.
@@ -1919,10 +2044,15 @@ function renderWeapon() {
 }
 
 function renderHud() {
+  const cfg = DIFFICULTY[state.difficulty];
   $('deck-count').textContent = state.deck.length;
-  $('skip-count').textContent = state.skipsLeft;
+  // Wanderer has unlimited flees — render the badge as ∞ instead of a number.
+  $('skip-count').textContent = state.skipsLeft === Infinity ? '∞' : state.skipsLeft;
   $('skip-count').classList.toggle('zero', state.skipsLeft === 0);
-  $('skip-btn').disabled = state.skipsLeft <= 0 || state.inputLocked;
+  // Damned cannot flee a room once any card is resolved — disable the button
+  // mid-room so the player isn't tempted to click and get the "too late" hint.
+  const fleeMidLocked = !cfg.fleeAfterPick && state.room.some(c => c === null);
+  $('skip-btn').disabled = state.skipsLeft <= 0 || state.inputLocked || fleeMidLocked;
   $('undo-btn').disabled = !state.undoAllowed || !state.undoSnapshot || state.undoUsed || state.inputLocked;
   renderWeapon();
   updateAtmosphere();
@@ -2239,11 +2369,15 @@ function flashCard(slotIndex, cls) {
 }
 function consumeCard(slotIndex) {
   const cardEl = qs('.card', $('slot-'+slotIndex));
-  if (!cardEl) return;
-  cardEl.classList.add('consumed');
+  if (cardEl) cardEl.classList.add('consumed');
+  // Adventure mode: also fade the entity tile. Both modes' visuals fade in
+  // sync — the underlying state.room nullification happens once for both.
+  const advEl = document.getElementById('adv-entity-' + slotIndex);
+  if (advEl) advEl.classList.add('consumed');
   setTimeout(() => {
     state.room[slotIndex] = null;
     renderCard(slotIndex);
+    renderAdventureScene();
   }, 500);
 }
 
@@ -2283,6 +2417,14 @@ function refillRoom() {
   // place new cards in empty slots, with stagger
   let delay = 0;
   state.undoUsed = false; // new room → undo refreshed
+  // Adventure mode: brief fade-out / fade-in on the entity scene to suggest
+  // a room transition. Cards can deal in over the top; the entity scene
+  // re-renders inside the fade.
+  const advScene = $('adventure-scene');
+  if (state.mode === 'adventure' && advScene) {
+    advScene.classList.add('room-transition');
+    setTimeout(() => advScene.classList.remove('room-transition'), 720);
+  }
   for (let i = 0; i < 4; i++) {
     if (state.room[i] === null && state.deck.length > 0) {
       const card = state.deck.shift();
@@ -2290,6 +2432,7 @@ function refillRoom() {
       ((idx, d) => {
         setTimeout(() => {
           renderCard(idx);
+          renderAdventureScene();
           Audio.play('card-deal');
         }, d);
       })(i, delay);
@@ -2314,6 +2457,14 @@ function doSkip() {
   if (state.skipsLeft <= 0) {
     Audio.play('cant');
     hint('No flees remain', 1400);
+    return;
+  }
+  // Damned tier: cannot flee a room once any card has been resolved. The room
+  // must still be all four cards intact for the flee to be allowed.
+  const cfg = DIFFICULTY[state.difficulty];
+  if (!cfg.fleeAfterPick && state.room.some(c => c === null)) {
+    Audio.play('cant');
+    hint('Too late to flee — a card is already resolved', 1600);
     return;
   }
   captureUndo();
@@ -2387,7 +2538,7 @@ function newGame(diff) {
   const cfg = DIFFICULTY[state.difficulty];
   state.maxHp = cfg.hp;
   state.hp = cfg.hp;
-  state.deck = shuffle(buildDeck());
+  state.deck = shuffle(buildDeck(state.difficulty));
   state.room = [null, null, null, null];
   state.weapon = null;
   state.lastMonsterValue = null;
@@ -2408,6 +2559,28 @@ function newGame(diff) {
   _resetRenderCache();
   setAtmosphere(0); // reset to Antechamber on every new run
 
+  // Apply mode class on <body> so the CSS strip / cutscene bypass takes effect
+  // BEFORE the game screen appears. mode-quick hides the trainer + decorations
+  // and short-circuits the cutscene; mode-adventure is the full presentation.
+  document.body.classList.toggle('mode-quick', state.mode === 'quick');
+  document.body.classList.toggle('mode-adventure', state.mode !== 'quick');
+
+  // Adventure mode: camera-zoom-into-the-entrance intro animation. Clear any
+  // lingering treasure-room overlay from a previous run, then trigger the
+  // dungeon-arena zoom-in keyframe by toggling the class.
+  const arena = qs('.dungeon-arena');
+  const treasure = $('treasure-room');
+  if (treasure) treasure.classList.remove('active');
+  if (arena) {
+    arena.classList.remove('zoom-intro');
+    if (state.mode === 'adventure') {
+      // Force a reflow so re-adding the class restarts the animation.
+      void arena.offsetWidth;
+      arena.classList.add('zoom-intro');
+      setTimeout(() => arena.classList.remove('zoom-intro'), 1300);
+    }
+  }
+
   showScreen('game');
   hideOverlay('pause'); hideOverlay('defeat'); hideOverlay('victory');
   Player.render('idle');
@@ -2415,21 +2588,34 @@ function newGame(diff) {
   renderHp();
   renderHud();
   updatePeek();
-  log(`Descend into the Crypt — ${cfg.label} difficulty`);
+  const modeLabel = state.mode === 'quick' ? 'Quick Play' : 'Adventure';
+  log(`Descend into the Crypt — ${cfg.label} · ${modeLabel}`);
   // Initial deal animation
   setTimeout(() => refillRoom(), 250);
 }
 
 function endGame(victory) {
   state.inputLocked = true;
+  // Adventure-mode treasure room (Phase 4 stub): on victory, show the
+  // treasure-room overlay for ~1.6s before the victory frame. Phase 5 will
+  // animate the trainer walking in and replace the placeholder pile with
+  // pixel-art treasure sprites.
+  const treasure = $('treasure-room');
+  const showTreasure = victory && state.mode === 'adventure' && treasure;
+  const treasureDelay = showTreasure ? 1600 : 0;
+  if (showTreasure) {
+    treasure.classList.add('active');
+    Audio.play('victory');
+  }
   setTimeout(() => {
     if (victory) {
-      Audio.play('victory');
+      if (!showTreasure) Audio.play('victory');
       flashScreen('gold');
       const stats = computeStats();
       $('victory-stats').innerHTML = renderStats(stats);
       saveBest(stats);
       showOverlay('victory');
+      if (treasure) treasure.classList.remove('active');
     } else {
       Audio.play('death');
       flashScreen('red');
@@ -2437,7 +2623,7 @@ function endGame(victory) {
       $('defeat-stats').innerHTML = renderStats(stats);
       showOverlay('defeat');
     }
-  }, 700);
+  }, 700 + treasureDelay);
 }
 
 function computeStats() {
@@ -2555,8 +2741,22 @@ function loadOptions() {
   Audio.setMusic(state.options.music);
 
   if (save.lastDifficulty) {
-    state.difficulty = save.lastDifficulty;
-    selectDifficulty(save.lastDifficulty);
+    // Map legacy v0.4.x difficulty keys to the v0.4.9 5-tier ladder so saves
+    // from before the rework don't snap back to default. easy → apprentice
+    // (closest equivalent: peek+undo+3-flees), normal → adventurer, hard →
+    // vanquisher (no undo / no peek), nightmare → damned. New 'wanderer' tier
+    // has no legacy equivalent — only reachable by selecting it explicitly.
+    const LEGACY_DIFF_MAP = {
+      easy: 'apprentice', normal: 'adventurer', hard: 'vanquisher', nightmare: 'damned'
+    };
+    const mapped = LEGACY_DIFF_MAP[save.lastDifficulty] || save.lastDifficulty;
+    if (DIFFICULTY[mapped]) {
+      state.difficulty = mapped;
+      selectDifficulty(mapped);
+    }
+  }
+  if (save.lastMode === 'quick' || save.lastMode === 'adventure') {
+    state.mode = save.lastMode;
   }
   refreshBestScoreLine();
 }
@@ -2565,13 +2765,32 @@ function loadOptions() {
 // EVENT WIRING
 // -----------------------------------------------------------
 function wireEvents() {
-  // Menu buttons
+  // Menu buttons (navigation)
   qsa('[data-menu]').forEach(btn => {
     btn.addEventListener('click', () => {
       Audio.play('click');
       const action = btn.dataset.menu;
-      if (action === 'play') newGame();
+      if (action === 'play') newGame();   // legacy path; current menu uses data-mode
       else showScreen(action);
+    });
+  });
+  // Mode buttons — Adventure / Quick Play. Sets state.mode then starts a run.
+  qsa('[data-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      Audio.play('click');
+      state.mode = btn.dataset.mode === 'quick' ? 'quick' : 'adventure';
+      saveData({ lastMode: state.mode });
+      newGame();
+    });
+  });
+  // Adventure-mode entity clicks. The entities persist across renders so we
+  // wire clicks once at init (not per render). Same handler as cards — the
+  // slot index lives on data-slot.
+  qsa('.adv-entity').forEach(entity => {
+    entity.addEventListener('click', (e) => {
+      if (entity.classList.contains('empty') || entity.classList.contains('consumed')) return;
+      const idx = parseInt(entity.dataset.slot, 10);
+      if (Number.isFinite(idx)) onCardClick(idx, e);
     });
   });
   // Back buttons
