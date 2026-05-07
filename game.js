@@ -447,6 +447,11 @@ const state = {
   damageTaken: 0,
   potionsUsed: 0,
   weaponsEquipped: 0,
+  // v0.6.1 — high-score / efficiency tracking
+  startTime: null,
+  endTime: null,
+  bareHits: 0,
+  fullHpHits: 0,
   inputLocked: false,
   isOver: false,
   undoSnapshot: null,
@@ -2379,6 +2384,12 @@ function doFight(slotIndex, forceBare) {
       state.monstersDefeated++;
       state.damageTaken += damage;
       state.cardsCleared++;
+      // v0.6.1 — efficiency tracking: count "mistakes" for the high-score
+      // formula. A bare-handed swing when the equipped weapon was usable
+      // (would have reduced damage) counts as a mistake. Hits taken at full
+      // HP also count (you "wasted" the buffer that lets potions stack up).
+      if (!useWeapon && state.weapon && !forceBare && damage > 0) state.bareHits++;
+      if (damage > 0 && state.hp >= state.maxHp) state.fullHpHits++;
       Audio.play('attack');
       if (damage > 0) {
         applyHpChange(-damage);
@@ -2678,6 +2689,11 @@ function newGame(diff) {
   state.damageTaken = 0;
   state.potionsUsed = 0;
   state.weaponsEquipped = 0;
+  // v0.6.1 — efficiency tracking for the high-score formula.
+  state.startTime = Date.now();
+  state.endTime = null;
+  state.bareHits = 0;     // bare-handed fights when a weapon was usable
+  state.fullHpHits = 0;   // hits taken at full HP (potion was wasted)
   state.inputLocked = false;
   state.isOver = false;
   state.undoSnapshot = null;
@@ -2730,6 +2746,7 @@ function newGame(diff) {
 
 function endGame(victory) {
   state.inputLocked = true;
+  state.endTime = Date.now();         // v0.6.1 — freeze the time-bonus clock
   const treasure = $('treasure-room');
   const adventureWin = victory && state.mode === 'adventure' && treasure;
 
@@ -2764,15 +2781,15 @@ function endGame(victory) {
       }
     }, 920);
 
-    setTimeout(() => {
-      // t=2700 — victory frame + cleanup. Treasure stays visible briefly
-      // behind the overlay before fading.
+    // v0.6.1 — instead of auto-advancing to the score frame after 2.7s,
+    // wait for the player to click "CONTINUE" in the treasure room. This
+    // lets them savor the win.
+    const advanceToVictory = () => {
       flashScreen('gold');
       const stats = computeStats();
       $('victory-stats').innerHTML = renderStats(stats);
       saveBest(stats);
       showOverlay('victory');
-      // Reset player-layer inline state so a subsequent run starts clean.
       if (player) {
         player.style.transition = '';
         player.style.transform = '';
@@ -2781,7 +2798,29 @@ function endGame(victory) {
       }
       treasure.classList.remove('active');
       closeDungeonDoor();
-    }, 2700);
+    };
+    const continueBtn = $('treasure-continue');
+    if (continueBtn) {
+      const handler = (e) => {
+        e.stopPropagation();
+        continueBtn.removeEventListener('click', handler);
+        document.removeEventListener('keydown', keyHandler);
+        advanceToVictory();
+      };
+      const keyHandler = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          continueBtn.removeEventListener('click', handler);
+          document.removeEventListener('keydown', keyHandler);
+          advanceToVictory();
+        }
+      };
+      continueBtn.addEventListener('click', handler);
+      document.addEventListener('keydown', keyHandler);
+    } else {
+      // Fallback if the markup is missing: auto-advance after the original delay.
+      setTimeout(advanceToVictory, 2700);
+    }
     return;
   }
 
@@ -2804,58 +2843,135 @@ function endGame(victory) {
   }, 700);
 }
 
+// v0.6.1 — score formula rewritten around skill, not raw activity.
+// Components (before difficulty multiplier):
+//   clear_bonus   200 if the deck was cleared (you reached the treasure room)
+//   hp_bonus      hp_remaining * 8   (rewards survival)
+//   monster_bonus monstersDefeated * 4
+//   time_bonus    max(0, 200 - elapsedSeconds)   (faster = better, cap 200)
+//   mistake_pen   bareHits * 12 + fullHpHits * 6   (penalises sloppy play)
+// The whole stack is multiplied by the difficulty mult (Damned ×4 → Wanderer ×0.7).
+// Scores are floored to 0 so a bad run can't go negative.
 function computeStats() {
   const cfg = DIFFICULTY[state.difficulty];
-  const score = Math.round(
-    (state.hp * 10
-      + state.cardsCleared * 5
-      + state.skipsLeft * 8
-      + state.monstersDefeated * 3
-      - state.damageTaken
-    ) * cfg.mult
-  );
+  if (!state.endTime) state.endTime = Date.now();
+  const elapsedMs = state.startTime ? (state.endTime - state.startTime) : 0;
+  const elapsedSeconds = Math.round(elapsedMs / 1000);
+  const deckCleared = state.deck.length === 0 && state.room.every(c => c === null);
+
+  const clearBonus    = deckCleared ? 200 : 0;
+  const hpBonus       = state.hp * 8;
+  const monsterBonus  = state.monstersDefeated * 4;
+  const timeBonus     = Math.max(0, 200 - elapsedSeconds);
+  const mistakePenalty = state.bareHits * 12 + state.fullHpHits * 6;
+
+  const raw = (clearBonus + hpBonus + monsterBonus + timeBonus - mistakePenalty);
+  const score = Math.max(0, Math.round(raw * cfg.mult));
   return {
     difficulty: cfg.label,
+    diffKey: state.difficulty,
+    mode: state.mode,
     cardsCleared: state.cardsCleared,
     monstersDefeated: state.monstersDefeated,
     damageTaken: state.damageTaken,
     potionsUsed: state.potionsUsed,
     weaponsEquipped: state.weaponsEquipped,
     hpRemaining: state.hp,
-    skipsLeft: state.skipsLeft,
-    score: Math.max(0, score)
+    skipsLeft: state.skipsLeft === Infinity ? '∞' : state.skipsLeft,
+    elapsedSeconds,
+    bareHits: state.bareHits,
+    fullHpHits: state.fullHpHits,
+    deckCleared,
+    score,
+    date: Date.now()
   };
 }
 
+function _fmtTime(s) {
+  const mm = Math.floor(s / 60).toString().padStart(2, '0');
+  const ss = (s % 60).toString().padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
 function renderStats(s) {
+  // Pull the top-5 leaderboard for this run's mode + difficulty so the
+  // overlay shows where this score lands.
+  const top = loadTopScores(s.mode, s.diffKey);
+  const myRank = top.findIndex(t => t.date === s.date && t.score === s.score);
+  const leaderRows = top.length
+    ? top.map((t, i) => {
+        const me = (i === myRank);
+        return `<tr class="${me ? 'me' : ''}">
+          <td>${i + 1}</td>
+          <td>${t.score}</td>
+          <td>${_fmtTime(t.elapsedSeconds || 0)}</td>
+          <td>${t.hpRemaining ?? '—'}</td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="4" class="empty">no records yet</td></tr>`;
+
   return `
+    <div class="stat-label">Mode</div><div class="stat-value">${s.mode === 'quick' ? 'Quick Play' : 'Adventure'}</div>
     <div class="stat-label">Difficulty</div><div class="stat-value">${s.difficulty}</div>
     <div class="stat-label">Vitality</div><div class="stat-value">${s.hpRemaining}</div>
-    <div class="stat-label">Cards Cleared</div><div class="stat-value">${s.cardsCleared}</div>
+    <div class="stat-label">Time</div><div class="stat-value">${_fmtTime(s.elapsedSeconds)}</div>
     <div class="stat-label">Monsters Slain</div><div class="stat-value">${s.monstersDefeated}</div>
     <div class="stat-label">Damage Taken</div><div class="stat-value">${s.damageTaken}</div>
-    <div class="stat-label">Potions Drunk</div><div class="stat-value">${s.potionsUsed}</div>
-    <div class="stat-label">Blades Equipped</div><div class="stat-value">${s.weaponsEquipped}</div>
-    <div class="stat-label">Flees Unused</div><div class="stat-value">${s.skipsLeft}</div>
+    <div class="stat-label">Bare-handed Hits</div><div class="stat-value">${s.bareHits}</div>
+    <div class="stat-label">Full-HP Hits</div><div class="stat-value">${s.fullHpHits}</div>
     <div class="stat-label" style="border-top:1px solid rgba(201,168,87,0.3);padding-top:8px;margin-top:6px;grid-column:1">Score</div>
     <div class="stat-value" style="border-top:1px solid rgba(201,168,87,0.3);padding-top:8px;margin-top:6px;font-size:22px;">${s.score}</div>
+    <div class="leaderboard" style="grid-column:1 / -1">
+      <div class="leaderboard-title">Top 5 — ${s.mode === 'quick' ? 'Quick Play' : 'Adventure'} · ${s.difficulty}</div>
+      <table>
+        <thead><tr><th>#</th><th>Score</th><th>Time</th><th>HP</th></tr></thead>
+        <tbody>${leaderRows}</tbody>
+      </table>
+    </div>
   `;
 }
 
+// v0.6.1 — top-5 leaderboard per (mode, difficulty). Stored under
+// `top5_<mode>_<diff>` in the save blob. Saves all entries; `loadTopScores`
+// returns the top 5 sorted desc by score.
+function _topKey(mode, diff) { return `top5_${mode}_${diff}`; }
+function loadTopScores(mode, diff) {
+  const save = loadSave() || {};
+  const arr = save[_topKey(mode, diff)] || [];
+  return [...arr].sort((a, b) => b.score - a.score).slice(0, 5);
+}
 function saveBest(s) {
   const save = loadSave() || {};
-  const key = 'best_' + state.difficulty;
-  if (!save[key] || s.score > save[key].score) {
-    save[key] = s;
-    saveData(save);
+  const key = _topKey(s.mode, s.diffKey);
+  const list = save[key] || [];
+  list.push({
+    score: s.score, hpRemaining: s.hpRemaining,
+    elapsedSeconds: s.elapsedSeconds, deckCleared: s.deckCleared,
+    bareHits: s.bareHits, fullHpHits: s.fullHpHits,
+    date: s.date
+  });
+  // Keep at most top-10 stored (display top 5; storing more buffers ties).
+  list.sort((a, b) => b.score - a.score);
+  save[key] = list.slice(0, 10);
+  // Legacy single-best key kept for backward compat (consumed by menu line).
+  const legacyKey = 'best_' + s.diffKey;
+  if (!save[legacyKey] || s.score > save[legacyKey].score) {
+    save[legacyKey] = s;
   }
+  saveData(save);
 }
 function refreshBestScoreLine() {
   const save = loadSave() || {};
   const cfg = DIFFICULTY[state.difficulty];
-  const best = save['best_' + state.difficulty];
+  // Show best across BOTH modes for the current difficulty so the menu
+  // surfaces the player's PR regardless of which mode they last played.
+  const adv = (save[_topKey('adventure', state.difficulty)] || [])[0];
+  const qk  = (save[_topKey('quick',     state.difficulty)] || [])[0];
+  const best = (adv && (!qk || adv.score >= qk.score)) ? { ...adv, mode: 'Adv' }
+             : (qk ? { ...qk, mode: 'Qk' } : null);
   $('best-score-line').textContent =
-    best ? `Best (${cfg.label}): ${best.score} pts · ${best.hpRemaining} HP` : `Best (${cfg.label}): —`;
+    best ? `Best (${cfg.label} · ${best.mode}): ${best.score} pts · ${_fmtTime(best.elapsedSeconds || 0)}`
+         : `Best (${cfg.label}): —`;
 }
 
 // -----------------------------------------------------------

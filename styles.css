@@ -683,6 +683,57 @@ body.mode-quick     .overlay-frame::after {
 body.mode-adventure .overlay-frame .muted,
 body.mode-quick     .overlay-frame .muted { color: #a4b4c4; }
 
+/* v0.6.1 — top-5 leaderboard inside the victory/defeat overlay. */
+.leaderboard {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(201,168,87,0.3);
+}
+.leaderboard-title {
+  font-family: var(--display-px);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--gold-bright);
+  margin-bottom: 8px;
+  text-align: center;
+}
+.leaderboard table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--display-px);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.leaderboard th {
+  font-weight: 400;
+  color: var(--bone-mid);
+  padding: 4px 6px;
+  text-align: center;
+  border-bottom: 1px solid rgba(201,168,87,0.18);
+}
+.leaderboard td {
+  padding: 5px 6px;
+  text-align: center;
+  color: var(--bone);
+}
+.leaderboard tr.me td {
+  background: rgba(217,122,60,0.18);
+  color: var(--torch-bright);
+  font-weight: 700;
+}
+.leaderboard td.empty {
+  color: var(--bone-mid);
+  font-style: italic;
+  padding: 12px;
+}
+body.mode-adventure .leaderboard-title,
+body.mode-quick     .leaderboard-title { color: #e0e8f4; }
+body.mode-adventure .leaderboard tr.me td,
+body.mode-quick     .leaderboard tr.me td {
+  background: rgba(120,180,240,0.18);
+  color: #d8e8ff;
+}
+
 /* Drink animation polish (v0.6.0) — bottle should "consume" mid-animation.
    The trainer's drink frames have the bottle 'w' visible in F0/F1, vanishing
    in F2 (back to baseline). The effect is now also auto-faded by adding a
@@ -2707,6 +2758,39 @@ body.mode-adventure .treasure-room.active {
   letter-spacing: 0.08em;
   color: var(--bone-mid);
   font-style: italic;
+}
+/* v0.6.1 — CONGRATULATIONS heading + Continue button. */
+.treasure-room .treasure-congrats {
+  font-family: var(--display-px);
+  font-size: 14px;
+  letter-spacing: 0.4em;
+  color: var(--torch-pale);
+  margin-bottom: 24px;
+  text-shadow: 0 2px 0 #000, 0 0 24px rgba(232,200,120,0.7);
+  animation: treasure-pulse 1.6s ease-in-out infinite;
+}
+.treasure-room .treasure-continue {
+  margin-top: 28px;
+  pointer-events: auto;        /* parent .treasure-room is pointer-events:none */
+  font-family: var(--display-px);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  padding: 14px 28px;
+  /* Fade in after the rest of the scene settles so the player has time to
+     look at the treasure before being asked to advance. */
+  opacity: 0;
+  animation: treasure-continue-fade 0.6s ease-out forwards;
+  animation-delay: 1.4s;
+}
+.treasure-room.active .treasure-continue:hover {
+  transform: translateY(-1px);
+}
+@keyframes treasure-pulse {
+  0%, 100% { transform: scale(1);     filter: brightness(1); }
+  50%      { transform: scale(1.04);  filter: brightness(1.2); }
+}
+@keyframes treasure-continue-fade {
+  to { opacity: 1; }
 }
 @media (max-width: 720px) {
   .treasure-room .treasure-pile { width: 220px; height: 165px; }

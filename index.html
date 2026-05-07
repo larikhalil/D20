@@ -580,9 +580,11 @@
       <div class="action-log" id="action-log"></div>
 
       <!-- Treasure room overlay (adventure mode, when deck empties).
-           v0.5.3 — pixel-art treasure pile: open chest with gold mound,
-           gemstones, and a torch-lit halo radial gradient on .treasure-room. -->
+           v0.6.1 — gated by a CONTINUE button so the player can savor the
+           treasure pile before the score frame lands. Click 'continue' (or
+           press Enter / Space) to advance to the victory screen. -->
       <div class="treasure-room" id="treasure-room" aria-hidden="true">
+        <div class="treasure-congrats">CONGRATULATIONS</div>
         <svg class="treasure-pile" viewBox="0 0 32 24" shape-rendering="crispEdges">
           <!-- gold mound (back) -->
           <g fill="#e8c878">
@@ -651,6 +653,7 @@
         </svg>
         <div class="treasure-label">THE TREASURE ROOM</div>
         <div class="treasure-sub">The crypt yields its hoard.</div>
+        <button class="primary-btn treasure-continue" id="treasure-continue">CONTINUE ▸</button>
       </div>
     </main>
 
