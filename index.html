@@ -165,15 +165,10 @@
         <p class="tagline">— A Solitaire Dungeon · 44 Cards · 1 Soul —</p>
       </div>
       <nav class="menu-nav">
-        <button class="menu-btn primary" data-mode="adventure">
-          <span class="btn-glyph">⚔</span>
-          <span class="btn-label">Adventure</span>
-          <span class="btn-sub">Descend with the trainer</span>
-        </button>
-        <button class="menu-btn" data-mode="quick">
+        <button class="menu-btn primary" data-mode="quick">
           <span class="btn-glyph">♠</span>
-          <span class="btn-label">Quick Play</span>
-          <span class="btn-sub">Cards only · no cutscenes</span>
+          <span class="btn-label">Begin Descent</span>
+          <span class="btn-sub">44 cards · 1 soul</span>
         </button>
         <button class="menu-btn" data-menu="difficulty">
           <span class="btn-glyph">☼</span>
@@ -184,11 +179,6 @@
           <span class="btn-glyph">✦</span>
           <span class="btn-label">Tutorial</span>
         </button>
-        <button class="menu-btn" data-menu="options">
-          <span class="btn-glyph">♪</span>
-          <span class="btn-label">Options</span>
-        </button>
-        <button class="menu-btn small" data-menu="credits">Credits</button>
       </nav>
       <div class="best-score" id="best-score-line">Best Run: —</div>
     </div>
@@ -275,73 +265,62 @@
   <section id="screen-tutorial" class="screen" data-screen="tutorial">
     <div class="content-frame">
       <h2 class="section-title">Tome of Tutelage</h2>
-      <div class="tutorial-pages" id="tutorial-pages">
-        <article class="tut-page active" data-page="0">
-          <h3>Welcome, Wretch</h3>
-          <p>You stand at the gates of the Crypt with naught but your wits, your wits, and a deck. Each room of the dungeon is laid out as four cards. Survive every room, exhaust the deck — and the Crypt is yours.</p>
-          <p>From the main menu, choose your road: <strong>Adventure</strong> (full descent — knight, lanterns, the door swings as you pass) or <strong>Quick Play</strong> (cards only, fast taps for a quick round). Both modes share the same rules.</p>
-          <div class="tut-illustration">
-            <div class="tut-mini-card monster"><span class="tv">8</span><span class="ts">♠</span></div>
-            <div class="tut-mini-card potion"><span class="tv">7</span><span class="ts">♥</span></div>
-            <div class="tut-mini-card weapon"><span class="tv">5</span><span class="ts">♦</span></div>
-            <div class="tut-mini-card monster"><span class="tv">J</span><span class="ts">♣</span></div>
-          </div>
-        </article>
-        <article class="tut-page" data-page="1">
-          <h3>The Black Suits — Foes</h3>
-          <p>♠ Spades and ♣ Clubs are <strong>monsters</strong>. Their value is their menace: number cards by face, Jack&nbsp;= 11, Queen&nbsp;= 12, King&nbsp;= 13, Ace&nbsp;= 14.</p>
-          <p>Strike a monster bare-handed and suffer damage equal to its value. With a weapon, damage is reduced — but the weapon remembers.</p>
-          <div class="tut-illustration">
-            <div class="tut-mini-card monster"><span class="tv">A</span><span class="ts">♠</span><span class="tv-bot">A</span></div>
-            <div class="tut-mini-card monster"><span class="tv">10</span><span class="ts">♣</span><span class="tv-bot">10</span></div>
-          </div>
-        </article>
-        <article class="tut-page" data-page="2">
-          <h3>The Red Suits — Boons</h3>
-          <p>♥ Hearts are <strong>healing draughts</strong>. Quaff one to restore HP equal to its value — but you cannot exceed your maximum vitality of 20.</p>
-          <p>♦ Diamonds are <strong>weapons</strong>. Equip one and reduce monster damage by its value (minimum 0).</p>
-          <p>The red royals only return at easier difficulties — see the next page.</p>
-          <div class="tut-illustration">
-            <div class="tut-mini-card potion"><span class="tv">9</span><span class="ts">♥</span></div>
-            <div class="tut-mini-card weapon"><span class="tv">6</span><span class="ts">♦</span></div>
-          </div>
-        </article>
-        <article class="tut-page" data-page="3">
-          <h3>The Five Difficulties</h3>
-          <p>The Crypt offers five tiers from <strong>Damned</strong> (default, harshest) down to <strong>Wanderer</strong>. Each step easier eases ONE mechanic AND adds back one rank of red royals to the deck.</p>
-          <p><strong>Damned</strong> — 3 flees, no flee mid-room, no undo, no peek, deck 44.<br/>
-             <strong>Vanquisher</strong> — adds flee mid-room, +red Jacks (deck 46).<br/>
-             <strong>Adventurer</strong> — adds undo, +red Queens (deck 48).<br/>
-             <strong>Apprentice</strong> — adds peek-next-room, +red Kings (deck 50).<br/>
-             <strong>Wanderer</strong> — unlimited flees, full deck of 52.</p>
-        </article>
-        <article class="tut-page" data-page="4">
-          <h3>The Weapon's Curse</h3>
-          <p>A blade dulls upon iron flesh. After your weapon strikes a monster, the <strong>next</strong> monster you fight with that weapon must be of a <strong>strictly lower value</strong>. Strike a 10, then no foe of 10+ may face that blade again.</p>
-          <p>You may always set the weapon aside and meet a foe bare-handed (Shift-click on desktop). You may always replace your weapon by equipping a new diamond.</p>
-        </article>
-        <article class="tut-page" data-page="5">
-          <h3>Rooms &amp; Fleeing</h3>
-          <p>Each room shows four cards. Resolve them in any order. After three are resolved, the lone surviving card carries forward and three new cards join it.</p>
-          <p>You may <strong>flee</strong> a room as your difficulty allows. On <strong>Damned</strong>, fleeing is only legal if NO card has yet been resolved — once you commit to a card, you commit to the room. On easier tiers, you may flee mid-room.</p>
-          <p>Fleeing returns the unresolved cards to the bottom of the deck, then four new cards rise.</p>
-        </article>
-        <article class="tut-page" data-page="6">
-          <h3>The Crypt — Adventure Mode</h3>
-          <p>In Adventure, the cards become <strong>physical encounters</strong>: a slime, a mimic, a healing draught on a pedestal, a sword embedded in stone. Click any one and the knight walks to it, fights / drinks / picks it up, then walks back.</p>
-          <p>Clear all four and the knight crosses the room toward the iron door at the back. The door swings open, the camera follows you through, and a deeper chamber forms — each stage of the descent (Antechamber → Catacombs → Reliquary → Sanctum → Throne) wears its own decay.</p>
-          <p>Empty the deck and the door opens onto the <strong>treasure room</strong>.</p>
-        </article>
-        <article class="tut-page" data-page="7">
-          <h3>Vitality &amp; the D20</h3>
-          <p>Your soul is bound to a great D20 die in the chamber's right wall. Twenty pips of vigor. When the pips reach zero, the Crypt claims you.</p>
-          <p>Watch the die — it spins when you bleed and pulses when you heal. Listen for its hum.</p>
-        </article>
+      <!-- Interactive HP indicator at top of tutorial. Reacts to card clicks
+           on the pages below. Reset button restores 20/20 + re-enables all
+           tutorial cards. -->
+      <div class="tut-hp-indicator">
+        <span class="tut-hp-icon">♥</span>
+        <span class="tut-hp-text">HP&nbsp;<span id="tut-hp-val">20</span>&nbsp;/&nbsp;20</span>
+        <div class="tut-hp-bar"><div class="tut-hp-fill" id="tut-hp-fill"></div></div>
+        <button class="tut-hp-reset" id="tut-hp-reset" type="button">↻ Reset</button>
       </div>
-      <div class="tut-controls">
-        <button class="ghost-btn" id="tut-prev">⟵ Prev</button>
-        <span class="tut-progress" id="tut-progress">1 / 8</span>
-        <button class="ghost-btn" id="tut-next">Next ⟶</button>
+
+      <div class="tutorial-pages" id="tutorial-pages">
+
+        <article class="tut-page active" data-page="0">
+          <h3>Try It — A Guided Room</h3>
+          <div class="tut-tooltip-wrap">
+            <p class="tut-tooltip-text" id="tut-step-text">Click the glowing <strong>3 ♣ Goblin</strong> to fight it.</p>
+            <button class="primary-btn tut-ok-btn" id="tut-ok-btn" type="button" style="display:none">OK ▸</button>
+          </div>
+
+          <div class="tut-game-scene">
+            <div class="tut-weapon-panel" id="tut-weapon-panel">
+              <span class="tut-weapon-label">Weapon</span>
+              <span class="tut-weapon-value" id="tut-weapon-val">None</span>
+            </div>
+
+            <div class="tut-game-room" id="tut-game-room">
+              <div class="tut-game-card monster" data-suit="C" data-value="3" data-step="0">
+                <span class="tgc-corner tl">3<br>♣</span>
+                <span class="tgc-art">♣</span>
+                <span class="tgc-name">GOBLIN</span>
+                <span class="tgc-corner br">3<br>♣</span>
+              </div>
+              <div class="tut-game-card weapon" data-suit="D" data-value="5" data-step="1">
+                <span class="tgc-corner tl">5<br>♦</span>
+                <span class="tgc-art">♦</span>
+                <span class="tgc-name">SWORD +5</span>
+                <span class="tgc-corner br">5<br>♦</span>
+              </div>
+              <div class="tut-game-card monster" data-suit="S" data-value="4" data-step="2">
+                <span class="tgc-corner tl">4<br>♠</span>
+                <span class="tgc-art">♠</span>
+                <span class="tgc-name">SKELETON</span>
+                <span class="tgc-corner br">4<br>♠</span>
+              </div>
+              <div class="tut-game-card potion" data-suit="H" data-value="6" data-step="3">
+                <span class="tgc-corner tl">6<br>♥</span>
+                <span class="tgc-art">♥</span>
+                <span class="tgc-name">POTION +6</span>
+                <span class="tgc-corner br">6<br>♥</span>
+              </div>
+            </div>
+
+            <div class="tut-step-counter">Step <span id="tut-step-num">1</span> of 4</div>
+          </div>
+        </article>
+
       </div>
       <button class="ghost-btn back-corner" data-back="menu">⟵ Return</button>
     </div>
@@ -745,6 +724,27 @@
       <div class="overlay-buttons">
         <button class="primary-btn" data-end="restart">Once More</button>
         <button class="ghost-btn" data-end="menu">Main Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- INTRO LORE OVERLAY — first thing the player sees on load.    -->
+  <!-- X or "Enter the Crypt" dismisses and reveals the home menu.  -->
+  <!-- ============================================================ -->
+  <div id="overlay-intro" class="overlay active">
+    <div class="overlay-frame intro-frame">
+      <button class="intro-close" data-intro="dismiss" aria-label="Close" type="button">✕</button>
+      <div class="intro-emblem">⬢</div>
+      <h2>The Crypt of the D20</h2>
+      <div class="intro-body">
+        <p>Long ago, the sorcerer-kings built a crypt to hold their treasures and their cursed. The iron doors sealed for centuries. The dead waited.</p>
+        <p>Now you stand at the entrance — a wretched soul thrown in to test fate. You have no weapons, no allies, no light but the torches the crypt itself remembers to keep lit. Only your wits, and a deck of <strong>forty-four cards</strong> the gods have shuffled in your name.</p>
+        <p>Each <strong>room</strong> of the crypt deals you four cards. Each card is a moment: a beast to face, a potion to drink, a blade to claim from the stone. Resolve them in any order you choose — but resolve them all.</p>
+        <p>Exhaust the deck. Crack the throne. The hoard waits for the last soul standing.</p>
+      </div>
+      <div class="overlay-buttons">
+        <button class="primary-btn" data-intro="dismiss" type="button">Enter the Crypt</button>
       </div>
     </div>
   </div>

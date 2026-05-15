@@ -57,42 +57,24 @@ const STORAGE_KEY = 'crypt_d20_save_v1';
 // brick-pattern wall (.bg-stone). That + an alpha overlay = unmistakable
 // stage-to-stage shift. Earlier mix-blend-multiply was too subtle — now we
 // hard-shift the wall's hue and dump a colored haze over it.
+// v0.6.2 — all 5 anchors share identical values. The atmosphere never shifts
+// between rooms (per user request: "remove the visual effects differences
+// between rooms"). The lerp logic still runs but produces a constant result,
+// so the look stays consistent end-to-end. Stage names still advance for
+// narrative texture, but the lighting/particles do not change.
+const _SHARED_ATM = {
+  flameInner:[255,248,160], flameMid:[255,174, 32], flameOuter:[217,122, 60], flameBase:[122, 32,  8],
+  glowStrong:[255,160, 50,0.55], glowWeak:[255,160, 50,0.25],
+  vignMid:[ 10, 12, 16,0.65],    vignEdge:[  4,  5,  8,0.95],
+  overlay:[ 80, 56, 24,0.22],
+  bgHue:  0,   bgSat: 1.00, bgBri: 1.00
+};
 const ATMOSPHERE_ANCHORS = [
-  { at: 0.00, // Antechamber (warm ambient, slight golden ambient overlay)
-    flameInner:[255,245,212], flameMid:[255,184, 74], flameOuter:[217,122, 60], flameBase:[139, 26, 26],
-    glowStrong:[217,122, 60,0.42], glowWeak:[217,122, 60,0.16],
-    vignMid:[ 12,  6,  0,0.55],   vignEdge:[  4,  2,  0,0.95],
-    overlay:[ 90, 60, 30,0.20],
-    bgHue: 0,    bgSat: 1.0, bgBri: 1.0
-  },
-  { at: 0.18, // Catacombs — cool green-blue, dim
-    flameInner:[232,244,255], flameMid:[168,196,216], flameOuter:[ 80,120,168], flameBase:[ 26, 40, 72],
-    glowStrong:[ 80,140,200,0.55], glowWeak:[ 80,140,200,0.22],
-    vignMid:[  0,  8, 18,0.72],   vignEdge:[  0,  4, 10,0.97],
-    overlay:[ 50,120, 90,0.42],
-    bgHue: 130,  bgSat: 0.7, bgBri: 0.85
-  },
-  { at: 0.42, // Reliquary — violet ritual
-    flameInner:[255,232,255], flameMid:[216,168,232], flameOuter:[160, 80,208], flameBase:[ 72, 26, 74],
-    glowStrong:[176,104,208,0.58], glowWeak:[176,104,208,0.24],
-    vignMid:[ 24,  0, 36,0.76],   vignEdge:[ 12,  0, 20,0.98],
-    overlay:[120, 40,170,0.48],
-    bgHue: 220,  bgSat: 1.1, bgBri: 0.85
-  },
-  { at: 0.66, // Sanctum — crimson, deeply saturated
-    flameInner:[255,224,224], flameMid:[255,128, 96], flameOuter:[216, 56, 56], flameBase:[ 74,  8,  8],
-    glowStrong:[216, 56, 56,0.62], glowWeak:[216, 56, 56,0.26],
-    vignMid:[ 48,  0,  0,0.80],   vignEdge:[ 24,  0,  0,0.99],
-    overlay:[170, 20, 20,0.55],
-    bgHue: 340,  bgSat: 1.5, bgBri: 0.80
-  },
-  { at: 0.88, // Throne — deep red-violet, dim, otherworldly
-    flameInner:[255,255,255], flameMid:[255,232,160], flameOuter:[255,208,112], flameBase:[128, 96, 16],
-    glowStrong:[255,232,160,0.66], glowWeak:[255,232,160,0.28],
-    vignMid:[ 48,  0, 24,0.88],   vignEdge:[ 24,  0, 12,1.00],
-    overlay:[100, 10, 60,0.62],
-    bgHue: 290,  bgSat: 1.7, bgBri: 0.70
-  }
+  { at: 0.00, ..._SHARED_ATM },
+  { at: 0.18, ..._SHARED_ATM },
+  { at: 0.42, ..._SHARED_ATM },
+  { at: 0.66, ..._SHARED_ATM },
+  { at: 0.88, ..._SHARED_ATM }
 ];
 
 const STAGE_NAMES = [
@@ -176,7 +158,11 @@ function updateAtmosphere() {
   setAtmosphere(progress);
   // Stage banner (always visible — explicit feedback that the descent is shifting)
   const banner = $('stage-banner');
-  if (banner) banner.textContent = _stageNameFor(progress);
+  if (banner) {
+    const ROMAN = { Antechamber: 'I', Catacombs: 'II', Reliquary: 'III', Sanctum: 'IV', Throne: 'V' };
+    const name = _stageNameFor(progress);
+    banner.innerHTML = '<span class="roman">' + ROMAN[name] + '</span><span class="name">' + name.toUpperCase() + '</span>';
+  }
   // Stage key on body — drives per-stage particle decor in styles.css.
   document.body.dataset.stage = _stageKeyFor(progress);
   // milestone hint flashes (fire-once per run)
@@ -429,10 +415,10 @@ function shuffle(arr) {
 const state = {
   // 'adventure' = full staging (trainer sprite, cutscenes, room decor).
   // 'quick'     = card-only — no character, no cutscenes, minimal chrome.
-  // The card rules and difficulty model are identical between modes; only the
-  // presentation layer differs. Set by the menu's [data-mode] buttons before
-  // newGame() is called; persisted under save.lastMode.
-  mode: 'adventure',
+  // v0.6.1 — Adventure mode is hidden from the menu but its code paths remain
+  // intact for the (unlikely) case someone re-enables it. New runs default to
+  // 'quick' (the card-game-only experience).
+  mode: 'quick',
   difficulty: 'damned',
   hp: 20,
   maxHp: 20,
@@ -493,6 +479,11 @@ function showScreen(name) {
   // grey-crypt palette (scoped on body.mode-*) doesn't bleed into menus.
   if (name !== 'game') {
     document.body.classList.remove('mode-quick', 'mode-adventure');
+  }
+  // Entering the tutorial screen resets the guided playthrough so it starts
+  // from a clean HP=20 / no-weapon state.
+  if (name === 'tutorial' && typeof window.__tutorialReset === 'function') {
+    window.__tutorialReset();
   }
 }
 function showOverlay(name) { $('overlay-' + name).classList.add('active'); }
@@ -590,190 +581,419 @@ function pixelSpriteSheet(frames, palette, sizePct, opts = {}) {
 // helmet + cuirass + greaves silhouette, optional cape draped down the back.
 // Idle is a SINGLE static frame (no breathing sway); the figure only animates
 // during action poses (drink, equip, attack, dash, hurt).
+// v0.6 — replaced the cloaked knight with the Wild Berserker (Phase B of the
+// Golden Axe visual reset). Spec: docs/superpowers/specs/2026-05-15-visual-direction-design.md §5
+// Mockup: .superpowers/brainstorm/1504-1778853848/content/s3-hero-evolution.html
+// Sprites are 24-wide × 28-tall back-view (player faces away from camera).
+// Axis at col 11-12; mane occupies cols 8-16, fur pads 5-7 and 16-18, skin
+// (bare back) 8-15, belt at row 23, pants 24-25, boots 26-27. Battle-axe
+// is mounted diagonally on the right shoulder (haft cols 14-17, head cols 16-19).
 const PLAYER_PALETTE = {
-  '#': '#0a0608',  // outline (very dark cool)
-  'b': '#c0c8d0',  // armor bright (silver highlight)
-  'd': '#4a5058',  // armor shadow (mid-grey)
-  'D': '#2a2e36',  // armor deep shadow (visor interior, joint creases)
-  'y': '#c9a857',  // gold trim (belt, helmet rim)
-  'e': '#ffd040',  // visor glow (warm gold inside the eye slit)
-  'r': '#c52828',  // accent red (plume, hurt-flash)
-  'c': '#1a3a78',  // cape dark (royal blue)
-  'C': '#4a7ab0',  // cape highlight
-  'k': '#0a0a10',  // boot/leather dark
-  's': '#e8c0a0',  // skin (visible at exposed hands during equip/drink)
-  'w': '#f4ebd0'   // pale highlight (weapon flash, drink bottle)
+  '.': null,        // transparent
+  'H': '#ffd83a',   // mane highlight (bright gold)
+  'h': '#ffae20',   // mane base (amber)
+  'R': '#c8202a',   // headband (crimson)
+  'r': '#7a1818',   // headband shadow / dark accent
+  'X': '#ff4080',   // headband hurt-flash (brighter red-pink)
+  'S': '#e8a868',   // skin base (tan)
+  's': '#c88848',   // skin shadow (deep tan)
+  'L': '#f8c898',   // skin highlight (pale tan)
+  'F': '#6a4028',   // fur pad base (dark brown)
+  'f': '#8a5838',   // fur pad highlight
+  'B': '#7a3018',   // belt sash base (russet)
+  'b': '#9a4028',   // belt sash highlight
+  'Y': '#ffd83a',   // belt buckle gold
+  'P': '#3a2014',   // pants leather
+  'p': '#5a3018',   // pants rim light
+  'K': '#1a0a04',   // boot leather (near-black)
+  'k': '#3a2014',   // boot cuff
+  'M': '#9a9a9a',   // axe steel head
+  'm': '#5a5a5a',   // axe steel shadow
+  'W': '#5a3818',   // axe wood haft (default battleaxe)
+  'w': '#7a5028',   // axe wood highlight
+  'V': '#f4ebd0',   // pale highlight (drink bottle glass, weapon flash)
+  '#': '#0a0408'    // outline (rare — silhouette only)
 };
 
-// All frames 16x16, back-view (player faces away from camera, toward the foe).
-// Columns 5–10 = body axis. Rows 2–6 = helmet, 7–8 = gorget+pauldrons, 9–12 =
-// cuirass+belt, 13–14 = greaves, 15 = boots. Weapons + the strapped weapon
-// are composited separately by the Cutscene module — these sprites only show
-// body posture, not the wielded weapon.
+// All berserker frames are 24×28 grids. Animation slots match the cutscene
+// module's existing weapon-shape → animation routing; only the sprite data
+// changes — engine code is untouched.
 const PLAYER_PX = {
-  // IDLE — single static frame (loop:true with one frame = no animation;
-  // user explicitly asked for a non-animated idle).
+  // IDLE — single static frame. Wild Berserker, back-view.
+  // Anatomy: mane (rows 9-14), headband (row 12), fur pads + skin shoulders
+  // (rows 15-17), bare back with spine shadow (rows 18-22), belt sash + gold
+  // buckle (row 23), leather pants (rows 24-25), boots (rows 26-27). Battle-axe
+  // mounted on the right shoulder: head at rows 2-6 cols 16-19, haft slanting
+  // down-left through rows 7-8 to the body.
   idle: { fps: 1, loop: true, frames: [
     [
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+      '........................', // 0
+      '........................', // 1
+      '.................MM.....', // 2  axe head top
+      '................MMmM....', // 3
+      '................MmmM....', // 4
+      '................MMmM....', // 5
+      '................MMMM....', // 6  axe head bottom
+      '...............WWW......', // 7  axe haft
+      '..............WWW.......', // 8
+      '.........HHHHHH.........', // 9  mane peak
+      '........hHHHHHHHh.......', // 10
+      '........hhhhhhhhh.......', // 11
+      '........RRRRRRRRR.......', // 12 HEADBAND
+      '........hhhhhhhhh.......', // 13
+      '.........hhhhhhh........', // 14 mane bottom taper
+      '......FFFLSSSSLFFF......', // 15 fur pads + skin neck
+      '.....FFFFLSSSSSLFFFF....', // 16 widest shoulder
+      '......fFFSSSSSSFFf......', // 17
+      '.......sSSSSSSSs........', // 18 bare back start
+      '.......sSSSsSSSs........', // 19 spine shadow center
+      '.......sSSSsSSSs........', // 20
+      '.......sSSSsSSSs........', // 21
+      '.......sSSSsSSSs........', // 22
+      '.......bBBYYBBb.........', // 23 belt + buckle
+      '.........PPPpPPP........', // 24 pants
+      '.........PPPpPPP........', // 25
+      '.........PP..PP.........', // 26 legs split
+      '........KKK..KKK........'  // 27 boots
     ]
   ]},
 
-  // DASH-IN — 2 frames, runs once. Knight strides forward (toward foe).
-  // Body posture identical to idle; only the boots change to suggest stride.
+  // DASH-IN — 2 frames. Stride forward. Only the bottom rows change.
   dashIn: { fps: 8, loop: false, frames: [
-    [ // F0 — left foot forward
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bb##bb#....','...##....##.....'
+    [ // F0 — left foot lifted forward
+      '........................','........................',
+      '.................MM.....','................MMmM....',
+      '................MmmM....','................MMmM....',
+      '................MMMM....','...............WWW......',
+      '..............WWW.......','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP...PP........','........KKK...KKK.......'
     ],
-    [ // F1 — right foot forward
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...#bb##bb##....','...##....##.....'
+    [ // F1 — right foot lifted forward
+      '........................','........................',
+      '.................MM.....','................MMmM....',
+      '................MmmM....','................MMmM....',
+      '................MMMM....','...............WWW......',
+      '..............WWW.......','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PPP........','........KKK..KKKK.......'
     ]
   ]},
 
-  // ATTACK-PIERCE — 3 frames. Body coils → thrusts forward → recoils.
-  // The forward thrust reads as visor flare (yellow eye-slit fully lit) +
-  // body cells extending to the right (the arm/shoulder reaching past).
+  // ATTACK-PIERCE — 3 frames. Body coils → thrust right → recoil. The forward
+  // thrust extends skin cells to the right of the body (the right arm reaching).
   attackPierce: { fps: 9, loop: false, frames: [
-    [ // F0 — wind-up (slight back-pull, visor narrows)
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDDeDDb#...','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F0 — wind-up (body coils slightly, axe haft pulls back)
+      '........................','........................',
+      '.................MM.....','................MMmM....',
+      '................MmmM....','................MMmM....',
+      '................MMMM....','...............WWW......',
+      '..............WWW.......','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ],
-    [ // F1 — peak thrust (visor blazes, shoulder extends right)
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#beeeeb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb###..','..#bbddyyddbbbb.','..#bdddddddbbbb.','..#bydddddybbb#.',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F1 — thrust peak (skin cells extend to col 18+ representing arm reaching)
+      '........................','........................',
+      '.................MM.....','................MMmM....',
+      '................MmmM....','................MMmM....',
+      '................MMMM....','...............WWW......',
+      '..............WWW.......','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFFSSs.','......fFFSSSSSSFFfSSSs..',
+      '.......sSSSSSSSsSSSSs...','.......sSSSsSSSSSSSSs...',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ],
-    [ // F2 — recoil (back to idle posture, glint lingers)
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F2 — recoil (back to wind-up posture)
+      '........................','........................',
+      '.................MM.....','................MMmM....',
+      '................MmmM....','................MMmM....',
+      '................MMMM....','...............WWW......',
+      '..............WWW.......','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ]
   ]},
 
-  // ATTACK-SLASH — 3 frames. Sweeping arc visualised by torso lean — back-left
-  // wind-up, then through center, then forward-right follow-through.
+  // ATTACK-SLASH — 3 frames. Torso sweeps left → up → right. Axe orbits overhead
+  // in F1 (axe head moves to top-center cells).
   attackSlash: { fps: 8, loop: false, frames: [
-    [ // F0 — body twisted back-left (cells extend left of torso)
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '..###bbbbbb##...','.bbbbddyyddbb#..','.bbbdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F0 — wind-up to LEFT (skin cells extend left, axe haft tilts left)
+      '........................','........................',
+      '.................MM.....','................MMmM....',
+      '................MmmM....','................MMmM....',
+      '................MMMM....','............WWW.........',
+      '...........WWW..........','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '..sSSFFFFLSSSSSLFFFF....','.sSSSfFFSSSSSSFFf......',
+      'sSSSSsSSSSSSSSs.........','.sSSSsSSSsSSSSs.........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ],
-    [ // F1 — through center (visor flares)
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#beeeeb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F1 — axe overhead, body upright (axe head at top of frame)
+      '.........MMMM...........','........MMmmMM..........',
+      '.........MMMM...........','...........WW...........',
+      '...........WW...........','...........WW...........',
+      '...........WW...........','...........WW...........',
+      '...........WW...........','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ],
-    [ // F2 — follow-through forward-right (cells extend right of torso)
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb###..','..#bbddyyddbbbb.','..#bdddddddbbbb.','..#bydddddybbbb.',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F2 — follow-through to RIGHT (skin cells extend right, axe haft tilts right)
+      '........................','........................',
+      '.................MM.....','................MMmM....',
+      '................MmmM....','................MMmM....',
+      '................MMMM....','..................WWW...',
+      '...................WWW..','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFFSSs.','......fFFSSSSSSFFfSSSs..',
+      '.......sSSSSSSSsSSSSSs..','.......sSSSsSSSSSSSSs...',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ]
   ]},
 
-  // ATTACK-SMASH — 3 frames. Arms raised high above the helmet → strike down.
-  // The 'b' cells above the helmet are the lifted weapon shaft (composited
-  // weapon-trail SVG continues this above the sprite).
+  // ATTACK-SMASH — 3 frames. Axe raised STRAIGHT UP overhead → held → bring down.
+  // F2 brings the axe head BELOW the body (overlap with legs/boots region).
   attackSmash: { fps: 7, loop: false, frames: [
-    [ // F0 — arms raised, weapon held high
-      '.......bb.......','.......bb.......','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F0 — axe up high
+      '..........MMMM..........','.........MMmmMM.........',
+      '..........MMMM..........','...........WW...........',
+      '...........WW...........','...........WW...........',
+      '...........WW...........','...........WW...........',
+      '...........WW...........','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ],
-    [ // F1 — held high (visor blazes, knees bend slightly)
-      '.......bb.......','.......bb.......','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#beeeeb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...##bddbb##....','...##bbbb##.....','...##....##.....'
+    [ // F1 — held high, body braced (knees bent — pants compressed)
+      '..........MMMM..........','.........MMmmMM.........',
+      '..........MMMM..........','...........WW...........',
+      '...........WW...........','...........WW...........',
+      '...........WW...........','...........WW...........',
+      '...........WW...........','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PP..PP.........',
+      '........KKK..KKK........','........KKK..KKK........'
     ],
-    [ // F2 — strike down (figure crouched, head lowered, arms swung down)
-      '................','................','................','......####......',
-      '.....#bbbb#.....','....#bbDDbb#....','....#beeeeb#....','....#bbDDbb#....',
-      '.....#bbbb#.....','...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F2 — strike down (axe head now in front of body, cells at lower rows)
+      '........................','........................',
+      '........................','........................',
+      '........................','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........',
+      '..........MMMM..........','.........MMmmMM.........'
     ]
   ]},
 
-  // ATTACK-BARE — 2 frames. Right-jab forward (body cells extend right past
-  // the cuirass = arm) → reset.
+  // ATTACK-BARE — 2 frames. No axe shown. Right shoulder twists forward, fist
+  // extends past sprite edge.
   attackBare: { fps: 8, loop: false, frames: [
-    [ // F0 — jab forward
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#beeeeb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb###..','..#bbddyyddbbbb.','..#bdddddddbbbb.','..#bydddddybbb#.',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F0 — jab forward (axe omitted, skin cells extend right)
+      '........................','........................',
+      '........................','........................',
+      '........................','........................',
+      '........................','........................',
+      '........................','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFFSSs.','......fFFSSSSSSFFfSSSSs.',
+      '.......sSSSSSSSsSSSSSSs.','.......sSSSsSSSSSSSSSs..',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ],
-    [ // F1 — reset (≈ idle)
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F1 — reset (axe still omitted — bare-handed posture)
+      '........................','........................',
+      '........................','........................',
+      '........................','........................',
+      '........................','........................',
+      '........................','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ]
   ]},
 
-  // DRINK — 2 frames. Bottle ('w' = pale liquid) raised toward the visor.
-  // The visor stays open (eye glow continues) so the player reads "drinking".
+  // DRINK — 2 frames. Right hand raises a pale potion bottle ('V') near the face.
   drink: { fps: 5, loop: false, frames: [
-    [ // F0 — bottle raised
-      '................','........www.....','......####www...','.....#bbbb#ww...',
-      '....#bbDDbbww...','....#bDeeDbw....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F0 — bottle raised at shoulder height
+      '........................','........................',
+      '.................MM.....','................MMmM....',
+      '................MmmM....','................MMmM....',
+      '................MMMM....','...............WWW......',
+      '..............WWW.......','.........HHHHHH...VV....',
+      '........hHHHHHHHh.VVV...','........hhhhhhhhh.VV....',
+      '........RRRRRRRRR.VV....','........hhhhhhhhh.VV....',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ],
-    [ // F1 — quaff (head tilted slightly back, bottle inverted)
-      '........www.....','........www.....','......####ww....','.....#bbbb#w....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F1 — bottle at face height (head tilted up)
+      '........................','.........HHHHHH..VV.....',
+      '........hHHHHHHHh.VVV...','........hhhhhhhhh.VV....',
+      '........RRRRRRRRR.VV....','........hhhhhhhhh.VV....',
+      '.........hhhhhhh........','.................MM.....',
+      '................MMmM....','................MmmM....',
+      '................MMmM....','................MMMM....',
+      '...............WWW......','..............WWW.......',
+      '......FFFLSSSSLFFF......','.....FFFFLSSSSSLFFFF....',
+      '......fFFSSSSSSFFf......','.......sSSSSSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......bBBYYBBb.........','.........PPPpPPP........',
+      '.........PPPpPPP........','.........PP..PP.........',
+      '........KKK..KKK........','........................'
     ]
   ]},
 
-  // EQUIP-PICKUP — 2 frames. Knight crouches → reaches → rises.
+  // EQUIP-PICKUP — 2 frames. Crouch (head + body shifted down, hands at lower rows) → rise.
   equipPickup: { fps: 6, loop: false, frames: [
-    [ // F0 — crouch (whole figure shifted DOWN ~3 rows, exposed hand on ground)
-      '................','................','................','......####......',
-      '.....#bbbb#.....','....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....',
-      '.....#bbbb#.....','...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..',
-      '..#bydddddybb#..','...sbbddbbs.....','..ss##bb##ss....','..s.##..##.s....'
+    [ // F0 — crouch (whole figure shifted DOWN ~5 rows + skin hands visible at bottom)
+      '........................','........................',
+      '........................','........................',
+      '........................','.................MM.....',
+      '................MMmM....','................MmmM....',
+      '................MMmM....','................MMMM....',
+      '..........HHHHHH........','.........hHHHHHHHh......',
+      '.........hhhhhhhhh......','.........RRRRRRRRR......',
+      '.........hhhhhhhhh......','..........hhhhhhh.......',
+      '......FFFLSSSSLFFF......','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......bBBYYBBb.........','.........PPPpPPP........',
+      '......sssPPPpPPPsss.....','.....sss.PP..PP.sss.....',
+      '....sss.................','...sss..................'
     ],
     [ // F1 — rising (≈ idle posture)
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+      '........................','........................',
+      '.................MM.....','................MMmM....',
+      '................MmmM....','................MMmM....',
+      '................MMMM....','...............WWW......',
+      '..............WWW.......','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ]
   ]},
 
-  // HURT — 2 frames. Whole figure shifted LEFT (foe-hit lands from the right),
-  // visor flares red ('r' replaces 'e' for one frame).
+  // HURT — 2 frames. Sprite shifted LEFT 2 cols, headband flares 'X' (pink-red flash).
   hurt: { fps: 8, loop: false, frames: [
-    [ // F0 — recoiled left + red visor flash
-      '................','................','....####........','...#bbbb#.......',
-      '..#bbDDbb#......','..#bDrrDb#......','..#bbDDbb#......','...#bbbb#.......',
-      '.##bbbbbb##.....','#bbddyyddbb#....','#bdddddddbb#....','#bydddddybb#....',
-      '#bbdddddbbb#....','.#bbddbbb#......','.##bbbb##.......','..##..##........'
+    [ // F0 — staggered left, headband bright
+      '........................','........................',
+      '...............MM.......','..............MMmM......',
+      '..............MmmM......','..............MMmM......',
+      '..............MMMM......','.............WWW........',
+      '............WWW.........','.......HHHHHH...........',
+      '......hHHHHHHHh.........','......hhhhhhhhh.........',
+      '......XXXXXXXXX.........','......hhhhhhhhh.........',
+      '.......hhhhhhh..........','....FFFLSSSSLFFF........',
+      '...FFFFLSSSSSLFFFF......','....fFFSSSSSSFFf........',
+      '.....sSSSSSSSs..........','.....sSSSsSSSs..........',
+      '.....sSSSsSSSs..........','.....sSSSsSSSs..........',
+      '.....sSSSsSSSs..........','.....bBBYYBBb...........',
+      '.......PPPpPPP..........','.......PPPpPPP..........',
+      '.......PP..PP...........','......KKK..KKK..........'
     ],
-    [ // F1 — recovery (idle posture, lingering visor glow)
-      '................','................','......####......','.....#bbbb#.....',
-      '....#bbDDbb#....','....#bDeeDb#....','....#bbDDbb#....','.....#bbbb#.....',
-      '...##bbbbbb##...','..#bbddyyddbb#..','..#bdddddddbb#..','..#bydddddybb#..',
-      '..#bbdddddbbb#..','...#bbddbbb#....','...##bbbb##.....','....##..##......'
+    [ // F1 — recovery (idle posture, headband returns to normal red)
+      '........................','........................',
+      '.................MM.....','................MMmM....',
+      '................MmmM....','................MMmM....',
+      '................MMMM....','...............WWW......',
+      '..............WWW.......','.........HHHHHH.........',
+      '........hHHHHHHHh.......','........hhhhhhhhh.......',
+      '........RRRRRRRRR.......','........hhhhhhhhh.......',
+      '.........hhhhhhh........','......FFFLSSSSLFFF......',
+      '.....FFFFLSSSSSLFFFF....','......fFFSSSSSSFFf......',
+      '.......sSSSSSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......sSSSsSSSs........',
+      '.......sSSSsSSSs........','.......bBBYYBBb.........',
+      '.........PPPpPPP........','.........PPPpPPP........',
+      '.........PP..PP.........','........KKK..KKK........'
     ]
   ]}
 };
@@ -1106,7 +1326,7 @@ const MONSTER_PX = {
   // v0.5.3 redraw — was RAT. Lowest-tier monster on the user's bestiary
   // ladder. Sits at the bottom of the 16x16 frame so larger sprites stay
   // anchored to the same ground-line.
-  2: { sz: 32, c: { '#':'#0a1208','O':'#84d058','o':'#5a9028','d':'#2a4a14','e':'#1a0a04','w':'#f4ebd0' },
+  2: { sz: 32, c: { '#':'#0a0408','O':'#7eeb44','o':'#5ed432','d':'#2e6a1a','e':'#0a0408','w':'#fff8e0' },
     g: [
       '................',
       '................',
@@ -1128,7 +1348,7 @@ const MONSTER_PX = {
 
   // 3 — KOBOLD  (lizardfolk, scaled, tail, horns)
   // v0.5.3 — moved from old slot 5 unchanged.
-  3: { sz: 46, c: { '#':'#0a0604','o':'#a04020','O':'#d05a30','d':'#5a1a08','e':'#ffe040','h':'#3a1a08','t':'#fff' },
+  3: { sz: 46, c: { '#':'#0a0408','o':'#d65a28','O':'#ff7a38','d':'#6a1e08','e':'#fff200','h':'#3a1608','t':'#fff8e0' },
     g: [
       '................',
       '....#.....#.....',
@@ -1149,7 +1369,7 @@ const MONSTER_PX = {
     ]},
 
   // 4 — GOBLIN  (hunched, club, big nose) — kept from prior roster
-  4: { sz: 54, c: { '#':'#0a0604','o':'#5e7a3a','O':'#84a050','d':'#2a3818','e':'#ffe040','n':'#7a4824','a':'#3a2616','w':'#fff' },
+  4: { sz: 54, c: { '#':'#0a0408','o':'#5ca030','O':'#8ad040','d':'#2e4818','e':'#fff200','n':'#a05a24','a':'#3a2014','w':'#ffffff' },
     g: [
       '................',
       '................',
@@ -1171,7 +1391,7 @@ const MONSTER_PX = {
 
   // 5 — ORC  (tusked warrior with axe)
   // v0.5.3 — moved from old slot 8 unchanged.
-  5: { sz: 60, c: { '#':'#0a0604','o':'#4a6040','O':'#6e8a58','d':'#1a2818','e':'#ff5050','w':'#fff','t':'#fff5d4','a':'#3a2616','m':'#aaaaaa','b':'#5a3818' },
+  5: { sz: 60, c: { '#':'#0a0408','o':'#3e7440','O':'#5fa058','d':'#1a3018','e':'#ff3040','w':'#ffffff','t':'#f4ebd0','a':'#3a2014','m':'#c8d0d8','b':'#7a5028' },
     g: [
       '................',
       '......####......',
@@ -1192,7 +1412,7 @@ const MONSTER_PX = {
     ]},
 
   // 6 — SKELETON WARRIOR
-  6: { sz: 62, c: { '#':'#0a0604','o':'#e4d4a8','O':'#fff5d4','d':'#7a6a4a','e':'#ff3030','m':'#aaaaaa','M':'#ffffff','s':'#3a2616','b':'#5a3a18' },
+  6: { sz: 62, c: { '#':'#0a0408','o':'#f0e4c0','O':'#fff8e0','d':'#8a7050','e':'#60e8ff','m':'#c0c8d0','M':'#ffffff','s':'#3a2014','b':'#7a5028' },
     g: [
       '................',
       '......####......',
@@ -1213,7 +1433,7 @@ const MONSTER_PX = {
     ]},
 
   // 7 — GHOUL  (gaunt, claws, sunken)
-  7: { sz: 66, c: { '#':'#0a0604','o':'#5a6452','O':'#7e8470','d':'#1a1c14','e':'#88ff44','t':'#3a3a2a','c':'#aabbaa' },
+  7: { sz: 66, c: { '#':'#0a0408','o':'#4a7050','O':'#7ea868','d':'#1a2818','e':'#a8ff30','t':'#3a3a2a','c':'#a0c8a0' },
     g: [
       '................',
       '......####......',
@@ -1235,7 +1455,7 @@ const MONSTER_PX = {
 
   // 8 — WRAITH  (hooded ghost) — moved from old slot 11 unchanged.
   // v0.5.3 — fits between ghoul (7) and troll (9) on the new ladder.
-  8: { sz: 70, c: { '#':'#0a0604','o':'#3a2840','O':'#5a4060','d':'#10081a','e':'#88ccff','m':'#aabbcc','M':'#ffffff','b':'#5a8fbf' },
+  8: { sz: 70, c: { '#':'#0a0408','o':'#3a2854','O':'#5a3a78','d':'#10081a','e':'#60d8ff','m':'#c0c8d0','M':'#ffffff','b':'#60c8ff' },
     g: [
       '................',
       '......####......',
@@ -1256,7 +1476,7 @@ const MONSTER_PX = {
     ]},
 
   // 9 — TROLL  (huge lumpy)
-  9: { sz: 76, c: { '#':'#0a0604','o':'#5a4a6a','O':'#7e6a8e','d':'#1a1424','e':'#ffaa30','b':'#3a2c4a','t':'#e8d8b4','c':'#aabbaa' },
+  9: { sz: 76, c: { '#':'#0a0408','o':'#6a4080','O':'#9858b8','d':'#1a1424','e':'#ffc020','b':'#3a2050','t':'#f4ebd0','c':'#a0c8a0' },
     g: [
       '................',
       '......####......',
@@ -1279,7 +1499,7 @@ const MONSTER_PX = {
   // 10 — MINOTAUR  (bull-headed warrior, sweeping horns, broad shoulders)
   // v0.5.3 redraw — was WYVERN. Top-of-numerics on the new ladder; hulking
   // silhouette signals the turn from "men" to "monsters" at J+.
-  10: { sz: 78, c: { '#':'#0a0604','o':'#5a3018','O':'#8a4a26','d':'#2a1408','e':'#ff5050','t':'#f4ebd0','b':'#3a1f10','m':'#aaa' },
+  10: { sz: 78, c: { '#':'#0a0408','o':'#a04018','O':'#e06028','d':'#3a1408','e':'#ff3040','t':'#fff8e0','b':'#3a1f10','m':'#c0c8d0' },
     g: [
       '................',
       '.tt..........tt.',
@@ -1302,7 +1522,7 @@ const MONSTER_PX = {
   // 11 (J) — MIMIC  (treasure chest with teeth + tongue + glowing eye)
   // v0.5.3 redraw — was WRAITH. Classic dungeon-crawler trickster: looks like
   // a chest, opens up to reveal jagged teeth and a long tongue.
-  11: { sz: 72, c: { '#':'#0a0604','o':'#5a3818','O':'#8a5828','d':'#2a1408','t':'#fff5d4','e':'#ff3030','y':'#c9a857','w':'#fff','r':'#a02428' },
+  11: { sz: 72, c: { '#':'#0a0408','o':'#7a7a82','O':'#b0b8c0','d':'#2a2a30','t':'#fff8e0','e':'#60d8ff','y':'#ffd83a','w':'#ffffff','r':'#ff3040' },
     g: [
       '................',
       '................',
@@ -1325,7 +1545,7 @@ const MONSTER_PX = {
   // 12 (Q) — SUCCUBUS  (winged demon, horns, hourglass silhouette)
   // v0.5.3 redraw — was HAG. Sharp-tipped wings flank the figure, small horns
   // on the head, slender torso narrowing to hips for the classic silhouette.
-  12: { sz: 80, c: { '#':'#0a0604','o':'#7a2a4a','O':'#a83a66','d':'#3a0a1c','e':'#ffe040','t':'#f4d8b4','w':'#5a1830','y':'#c9a857','b':'#3a1620' },
+  12: { sz: 80, c: { '#':'#0a0408','o':'#c8327a','O':'#ff4aa0','d':'#4a0a28','e':'#fff200','t':'#fff0d4','w':'#7a1838','y':'#ffd83a','b':'#3a1620' },
     g: [
       '...##.....##....',
       '..#oo#...#oo#...',
@@ -1348,7 +1568,7 @@ const MONSTER_PX = {
   // 13 (K) — OGRE  (huge brute, club, slack jaw, single eye)
   // v0.5.3 redraw — was DEMON LORD. Squat, broad-shouldered, with a massive
   // club resting against the body. Reads as "big stupid muscle".
-  13: { sz: 88, c: { '#':'#0a0604','o':'#5a6a2a','O':'#7e9040','d':'#1a2a08','e':'#ffe040','t':'#f4ebd0','b':'#3a1f10','y':'#c9a857','w':'#fff' },
+  13: { sz: 88, c: { '#':'#0a0408','o':'#2a8030','O':'#3eb848','d':'#1a3a08','e':'#fff200','t':'#fff8e0','b':'#3a1f10','y':'#ffd83a','w':'#ffffff' },
     g: [
       '......####......',
       '....##oOOOo##...',
@@ -1369,7 +1589,7 @@ const MONSTER_PX = {
     ]},
 
   // 14 (A) — ANCIENT DRAGON  (full beast)
-  14: { sz: 100, c: { '#':'#0a0604','o':'#206040','O':'#388858','d':'#0a1a10','e':'#ffe040','y':'#ffaa30','w':'#1a4028','t':'#fff','s':'#040a06','b':'#3a2616' },
+  14: { sz: 130, c: { '#':'#0a0408','o':'#1a0a04','O':'#3a1a10','d':'#050204','e':'#ff5018','y':'#ffae20','w':'#7a2008','t':'#fff5d4','s':'#050204','b':'#ff6a08' },
     g: [
       'w...........w...',
       'wwd........wwd..',
@@ -1393,7 +1613,7 @@ const MONSTER_PX = {
 const WEAPON_PX = {
 
   // 2 — DAGGER  (small, centered)
-  2: { sz: 36, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
+  2: { sz: 36, c: { '#':'#0a0408','b':'#c0c8d0','B':'#ffffff','h':'#7a5028','H':'#3a2616','y':'#ffd83a' },
     g: [
       '................',
       '................',
@@ -1414,7 +1634,7 @@ const WEAPON_PX = {
     ]},
 
   // 3 — SHORT SWORD
-  3: { sz: 44, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
+  3: { sz: 44, c: { '#':'#0a0408','b':'#c0c8d0','B':'#ffffff','h':'#7a5028','H':'#3a2616','y':'#ffd83a' },
     g: [
       '................',
       '................',
@@ -1436,7 +1656,7 @@ const WEAPON_PX = {
 
   // 4 — SCIMITAR  (curved single-edged blade, hilt at bottom-left)
   // v0.5.3 redraw — was HAND AXE. Curve sweeps up-right from the hilt.
-  4: { sz: 50, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
+  4: { sz: 50, c: { '#':'#0a0408','b':'#c0c8d0','B':'#ffffff','h':'#7a5028','H':'#3a2616','y':'#ffd83a' },
     g: [
       '................',
       '............##..',
@@ -1458,7 +1678,7 @@ const WEAPON_PX = {
 
   // 5 — LONG SWORD  (slim straight blade, value-mid)
   // v0.5.3 — moved from old slot 6.
-  5: { sz: 56, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','h':'#5a3a18','H':'#3a2616','y':'#c9a857','r':'#c52828' },
+  5: { sz: 56, c: { '#':'#0a0408','b':'#c0c8d0','B':'#ffffff','h':'#7a5028','H':'#3a2616','y':'#ffd83a','r':'#ff3040' },
     g: [
       '......##........',
       '......#bB#......',
@@ -1481,7 +1701,7 @@ const WEAPON_PX = {
   // 6 — MACE  (flanged head)
   // v0.5.3 — moved from old slot 5. Pairs with 9 GREAT MACE: same family,
   // scaled up at the top of the ladder.
-  6: { sz: 64, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','d':'#3a4a5a','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
+  6: { sz: 64, c: { '#':'#0a0408','b':'#c0c8d0','B':'#ffffff','d':'#4a5868','h':'#7a5028','H':'#3a2616','y':'#ffd83a' },
     g: [
       '................',
       '......##........',
@@ -1502,7 +1722,7 @@ const WEAPON_PX = {
     ]},
 
   // 7 — WAR HAMMER
-  7: { sz: 70, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','d':'#3a4a5a','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
+  7: { sz: 70, c: { '#':'#0a0408','b':'#c0c8d0','B':'#ffffff','d':'#4a5868','h':'#7a5028','H':'#3a2616','y':'#ffd83a' },
     g: [
       '................',
       '...########.....',
@@ -1523,7 +1743,7 @@ const WEAPON_PX = {
     ]},
 
   // 8 — BATTLE AXE  (bigger axe head)
-  8: { sz: 78, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','d':'#3a4a5a','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
+  8: { sz: 78, c: { '#':'#0a0408','b':'#c0c8d0','B':'#ffffff','d':'#4a5868','h':'#7a5028','H':'#3a2616','y':'#ffd83a' },
     g: [
       '................',
       '....##....####..',
@@ -1546,7 +1766,7 @@ const WEAPON_PX = {
   // 9 — GREAT MACE  (oversized flanged head, spike top, broad pommel)
   // v0.5.3 redraw — was GREATSWORD. Bigger sibling of slot 6 MACE — same
   // weapon family, dramatically scaled.
-  9: { sz: 86, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','d':'#3a4a5a','h':'#5a3a18','H':'#3a2616','y':'#c9a857' },
+  9: { sz: 86, c: { '#':'#0a0408','b':'#c0c8d0','B':'#ffffff','d':'#4a5868','h':'#7a5028','H':'#3a2616','y':'#ffd83a' },
     g: [
       '......####......',
       '....##bBBb##....',
@@ -1569,7 +1789,7 @@ const WEAPON_PX = {
   // 10 — GREAT SWORD  (very long blade, ornate fuller, jewelled pommel)
   // v0.5.3 — was GREAT AXE; replaced with the longer-blade design from old
   // slot 9 (the original GREATSWORD), now extended further.
-  10: { sz: 96, c: { '#':'#0a0604','b':'#aabbcc','B':'#ffffff','d':'#3a4a5a','h':'#5a3a18','H':'#3a2616','y':'#c9a857','r':'#7eb8e8' },
+  10: { sz: 96, c: { '#':'#0a0408','b':'#c0c8d0','B':'#ffffff','d':'#4a5868','h':'#7a5028','H':'#3a2616','y':'#ffd83a','r':'#60c8ff' },
     g: [
       '......##........',
       '......#bB#......',
@@ -1593,7 +1813,7 @@ const WEAPON_PX = {
 const POTION_PX = {
 
   // 2 — TINY VIAL
-  2: { sz: 38, c: { '#':'#0a0604','c':'#3a2616','y':'#c9a857','r':'#ff90a0','R':'#c52828','w':'#fff' },
+  2: { sz: 38, c: { '#':'#0a0408','c':'#5a3818','y':'#ffd83a','r':'#ff8aa0','R':'#c52828','w':'#ffffff' },
     g: [
       '................',
       '................',
@@ -1614,7 +1834,7 @@ const POTION_PX = {
     ]},
 
   // 3 — ROUND FLASK (small)
-  3: { sz: 44, c: { '#':'#0a0604','c':'#3a2616','y':'#c9a857','r':'#ff90a0','R':'#c52828','w':'#fff' },
+  3: { sz: 44, c: { '#':'#0a0408','c':'#5a3818','y':'#ffd83a','r':'#ff8aa0','R':'#c52828','w':'#ffffff' },
     g: [
       '................',
       '................',
@@ -1635,7 +1855,7 @@ const POTION_PX = {
     ]},
 
   // 4 — FLAT FLASK
-  4: { sz: 50, c: { '#':'#0a0604','c':'#3a2616','y':'#c9a857','r':'#ff90a0','R':'#c52828','w':'#fff' },
+  4: { sz: 50, c: { '#':'#0a0408','c':'#5a3818','y':'#ffd83a','r':'#ff8aa0','R':'#c52828','w':'#ffffff' },
     g: [
       '................',
       '................',
@@ -1656,7 +1876,7 @@ const POTION_PX = {
     ]},
 
   // 5 — CONICAL
-  5: { sz: 56, c: { '#':'#0a0604','c':'#3a2616','y':'#c9a857','r':'#ff90a0','R':'#c52828','w':'#fff' },
+  5: { sz: 56, c: { '#':'#0a0408','c':'#5a3818','y':'#ffd83a','r':'#ff8aa0','R':'#c52828','w':'#ffffff' },
     g: [
       '................',
       '......##........',
@@ -1677,7 +1897,7 @@ const POTION_PX = {
     ]},
 
   // 6 — STANDARD FLASK
-  6: { sz: 62, c: { '#':'#0a0604','c':'#3a2616','y':'#c9a857','r':'#ff90a0','R':'#c52828','w':'#fff' },
+  6: { sz: 62, c: { '#':'#0a0408','c':'#5a3818','y':'#ffd83a','r':'#ff8aa0','R':'#c52828','w':'#ffffff' },
     g: [
       '................',
       '......##........',
@@ -1698,7 +1918,7 @@ const POTION_PX = {
     ]},
 
   // 7 — ENCHANTED (with sparkles)
-  7: { sz: 68, c: { '#':'#0a0604','c':'#3a2616','y':'#c9a857','r':'#ff90a0','R':'#c52828','w':'#fff','s':'#ffe040' },
+  7: { sz: 68, c: { '#':'#0a0408','c':'#5a3818','y':'#ffd83a','r':'#ff8aa0','R':'#c52828','w':'#ffffff','s':'#fff200' },
     g: [
       '......s.s.......',
       '.s....##........',
@@ -1719,7 +1939,7 @@ const POTION_PX = {
     ]},
 
   // 8 — LARGE BOTTLE
-  8: { sz: 74, c: { '#':'#0a0604','c':'#3a2616','y':'#c9a857','r':'#ff90a0','R':'#c52828','w':'#fff' },
+  8: { sz: 74, c: { '#':'#0a0408','c':'#5a3818','y':'#ffd83a','r':'#ff8aa0','R':'#c52828','w':'#ffffff' },
     g: [
       '......##........',
       '......#cc#......',
@@ -1740,7 +1960,7 @@ const POTION_PX = {
     ]},
 
   // 9 — GIANT FLASK
-  9: { sz: 82, c: { '#':'#0a0604','c':'#3a2616','y':'#c9a857','r':'#ff90a0','R':'#c52828','w':'#fff','b':'#5a3a18' },
+  9: { sz: 82, c: { '#':'#0a0408','c':'#5a3818','y':'#ffd83a','r':'#ff8aa0','R':'#c52828','w':'#ffffff','b':'#7a5028' },
     g: [
       '......##........',
       '.....#cc#.......',
@@ -1761,7 +1981,7 @@ const POTION_PX = {
     ]},
 
   // 10 — ELDRITCH FLASK (largest, bubbling)
-  10: { sz: 92, c: { '#':'#0a0604','c':'#3a2616','y':'#c9a857','r':'#ff90a0','R':'#c52828','w':'#fff','b':'#5a3a18','s':'#ffe040' },
+  10: { sz: 92, c: { '#':'#0a0408','c':'#5a3818','y':'#ffd83a','r':'#ff8aa0','R':'#c52828','w':'#ffffff','b':'#7a5028','s':'#fff200' },
     g: [
       '......##........',
       '....##cc##......',
@@ -1850,7 +2070,7 @@ function renderCard(slotIndex) {
   const badgeHtml = outcomeBadgeHtml(card);
 
   slot.innerHTML = `
-    <div class="card ${kind} ${constraintLocked ? 'locked-out' : ''} flipping" data-slot="${slotIndex}">
+    <div class="card ${kind} ${constraintLocked ? 'locked-out' : ''} flipping" data-slot="${slotIndex}" data-suit="${card.suit}" data-value="${card.value}">
       <div class="card-face">
         <div class="card-corner top-left">
           <span class="corner-value">${label}</span>
@@ -2082,12 +2302,13 @@ function renderWeapon() {
 
   if (!state.weapon) {
     stack.innerHTML = `
-      <div class="weapon-frame" id="weapon-frame">
+      <div class="weapon-frame empty" id="weapon-frame">
         <div class="weapon-empty">NO<br>WEAPON</div>
       </div>`;
     meta.innerHTML = '<span style="color:var(--bone-mid)">—</span>';
     _renderCache.weaponSig = null;
     _renderCache.slainSig = null;
+    _applyWeaponElement();
     Player.renderEquippedWeapon(); // hide the back-strap weapon when unarmed
     return;
   }
@@ -2140,9 +2361,33 @@ function renderWeapon() {
     meta.innerHTML = `${VALUE_LABEL[w.value]}♦<span class="sub-val">ready</span>`;
   }
 
+  _applyWeaponElement();
+
   // Sync the back-strap weapon on the player layer so the equipped weapon is
   // visible at all times during gameplay (not just during cutscenes).
   Player.renderEquippedWeapon();
+}
+
+// Apply an "element-<kind>" class to the weapon UI based on the equipped
+// weapon's value, driving the elemental glow border defined in styles.css.
+// Targets whichever element currently exists in the DOM:
+//   - #weapon-frame: empty/placeholder state when no weapon is equipped
+//   - .slot-card.weapon-card: rendered when a weapon IS equipped
+function _applyWeaponElement() {
+  const target =
+    document.querySelector('.slot-card.weapon-card') ||
+    document.getElementById('weapon-frame');
+  if (!target) return;
+  const ELEMENT_MAP = { 2:'rust', 3:'rust', 4:'steel', 5:'steel', 6:'flame', 7:'thunder', 8:'purple', 9:'void', 10:'flame', 11:'flame', 12:'flame', 13:'flame', 14:'divine' };
+  target.classList.remove('element-rust','element-steel','element-flame','element-thunder','element-void','element-purple','element-divine');
+  if (!state.weapon) {
+    target.classList.add('empty');
+  } else {
+    target.classList.remove('empty');
+    const v = state.weapon.value;
+    const el = ELEMENT_MAP[v] || 'steel';
+    target.classList.add('element-' + el);
+  }
 }
 
 function renderHud() {
@@ -3002,12 +3247,21 @@ function tutNav(delta) {
   const pages = qsa('.tut-page');
   tutPage = Math.max(0, Math.min(pages.length - 1, tutPage + delta));
   pages.forEach((p, i) => p.classList.toggle('active', i === tutPage));
-  $('tut-progress').textContent = `${tutPage + 1} / ${pages.length}`;
-  $('tut-prev').disabled = tutPage === 0;
-  $('tut-next').disabled = tutPage === pages.length - 1;
-  $('tut-prev').style.opacity = tutPage === 0 ? 0.4 : 1;
-  $('tut-next').style.opacity = tutPage === pages.length - 1 ? 0.4 : 1;
+  // tut-progress / tut-prev / tut-next no longer exist (single-page tutorial),
+  // but guard anyway in case they come back.
+  const prog = $('tut-progress');
+  if (prog) prog.textContent = `${tutPage + 1} / ${pages.length}`;
+  const prev = $('tut-prev');
+  const next = $('tut-next');
+  if (prev) { prev.disabled = tutPage === 0;                 prev.style.opacity = tutPage === 0 ? 0.4 : 1; }
+  if (next) { next.disabled = tutPage === pages.length - 1;  next.style.opacity = tutPage === pages.length - 1 ? 0.4 : 1; }
   Audio.play('card-flip');
+  // Entering a page with playthrough cards resets all tutorial state so the
+  // scripted sequence starts clean (HP=20, no weapon, nothing consumed).
+  const activePage = pages[tutPage];
+  if (activePage && activePage.querySelector('.tut-game-card') && typeof window.__tutorialReset === 'function') {
+    window.__tutorialReset();
+  }
 }
 
 // -----------------------------------------------------------
@@ -3106,9 +3360,250 @@ function wireEvents() {
     showScreen('menu');
   });
 
-  // Tutorial nav
-  $('tut-prev').addEventListener('click', () => tutNav(-1));
-  $('tut-next').addEventListener('click', () => tutNav(1));
+  // Tutorial nav (single-page now — these buttons may not exist).
+  $('tut-prev')?.addEventListener('click', () => tutNav(-1));
+  $('tut-next')?.addEventListener('click', () => tutNav(1));
+
+  // Intro splash overlay — first thing the player sees on load. Either button
+  // ([X] or "Enter the Crypt") dismisses it and reveals the home menu.
+  qsa('[data-intro="dismiss"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      Audio.unlock();
+      const overlay = document.getElementById('overlay-intro');
+      if (overlay) overlay.classList.remove('active');
+      Audio.play('click');
+    });
+  });
+
+  // Tutorial interactive — two pieces:
+  //   (1) Pages 1-2: free-click example cards that affect the shared HP bar
+  //   (2) Page 3:    scripted guided playthrough — same HP bar + a weapon
+  //                  panel + a step counter. The user clicks the GLOWING card
+  //                  at each step and a tooltip walks through the rules
+  //                  (bare-hand fight → equip → weapon strike → heal).
+  (function setupTutorialInteractive() {
+    const TUT_MAX_HP = 20;
+    const tut = { hp: TUT_MAX_HP, weapon: null, weaponStruck: null, step: 0 };
+
+    const valEl    = document.getElementById('tut-hp-val');
+    const fillEl   = document.getElementById('tut-hp-fill');
+    const resetEl  = document.getElementById('tut-hp-reset');
+    const stepText = document.getElementById('tut-step-text');
+    const stepNum  = document.getElementById('tut-step-num');
+    const wepPanel = document.getElementById('tut-weapon-panel');
+    const wepVal   = document.getElementById('tut-weapon-val');
+    const playCards = qsa('.tut-game-card');
+
+    // Scripted sequence for the playthrough page. Each step has a BEFORE-click
+    // hint and an AFTER-click result that explains the rule the player just
+    // demonstrated. The result text remains visible while the next card's
+    // highlight appears, so the player reads the rule before reacting.
+    const SCRIPT = [
+      {
+        step: 0,
+        hint: 'Click the glowing <strong>3 ♣ Goblin</strong> to fight it.',
+        result: 'Ouch — you took <strong>3 damage</strong> fighting bare-handed. Monsters deal their full value when you have no weapon. Equip the <strong>5 ♦ Sword</strong> next to reduce damage from future monsters.',
+        run() {
+          const dmg = Math.min(tut.hp, 3);
+          tut.hp -= dmg;
+          return { effect: 'damage', float: '−' + dmg + ' HP' };
+        }
+      },
+      {
+        step: 1,
+        hint: 'Now click the <strong>5 ♦ Sword</strong> to equip it.',
+        result: '<strong>Sword equipped!</strong> Every monster you fight now deals 5 less damage. Strike the <strong>4 ♠ Skeleton</strong> next to see it in action.',
+        run() {
+          tut.weapon = 5;
+          return { effect: 'equip', float: '⛨ Equipped' };
+        }
+      },
+      {
+        step: 2,
+        hint: 'Strike the <strong>4 ♠ Skeleton</strong> with your sword.',
+        result: '<strong>Zero damage!</strong> Your sword absorbed all of it (4 − 5 = 0). But the sword is now battered — it can only fight monsters under value 4 from here on. Heal up with the <strong>6 ♥ Potion</strong> next.',
+        run() {
+          tut.weaponStruck = 4;
+          return { effect: 'damage', float: '0 damage!' };
+        }
+      },
+      {
+        step: 3,
+        hint: 'Drink the <strong>6 ♥ Potion</strong> to heal.',
+        result: '🏆 <strong>Room cleared!</strong> The potion restored HP, capped at your maximum of 20. You\'ve learned the basics — press <strong>Return</strong> below to start your first real descent, or hit <strong>↻ Reset</strong> above to try this room again.',
+        run() {
+          const before = tut.hp;
+          tut.hp = Math.min(TUT_MAX_HP, tut.hp + 6);
+          const gained = tut.hp - before;
+          return { effect: 'heal', float: gained > 0 ? '+' + gained + ' HP' : 'Already full' };
+        }
+      }
+    ];
+
+    function paintHP() {
+      if (valEl)  valEl.textContent = tut.hp;
+      if (fillEl) fillEl.style.width = (tut.hp / TUT_MAX_HP * 100) + '%';
+    }
+    function pulseHP(kind) {
+      if (!fillEl) return;
+      fillEl.classList.remove('pulse-heal', 'pulse-hurt');
+      void fillEl.offsetWidth;
+      fillEl.classList.add(kind === 'heal' ? 'pulse-heal' : 'pulse-hurt');
+    }
+    function paintWeapon() {
+      if (!wepPanel || !wepVal) return;
+      if (tut.weapon) {
+        wepPanel.classList.add('equipped');
+        wepVal.textContent = tut.weapon + ' ♦';
+      } else {
+        wepPanel.classList.remove('equipped');
+        wepVal.textContent = 'None';
+      }
+    }
+    function paintActive() {
+      playCards.forEach(c => c.classList.remove('active'));
+      if (tut.step < SCRIPT.length) {
+        const want = SCRIPT[tut.step].step;
+        const target = playCards.find(c => parseInt(c.dataset.step, 10) === want);
+        if (target && !target.classList.contains('consumed')) target.classList.add('active');
+      }
+      if (stepNum) stepNum.textContent = Math.min(tut.step + 1, SCRIPT.length);
+    }
+    function paintStepText() {
+      if (!stepText) return;
+      // After all steps: keep the final step's "result" (room-cleared message).
+      // Otherwise: show the current step's pre-click hint.
+      stepText.innerHTML = tut.step >= SCRIPT.length
+        ? SCRIPT[SCRIPT.length - 1].result
+        : SCRIPT[tut.step].hint;
+    }
+    function floatText(host, text, kind) {
+      const el = document.createElement('div');
+      el.className = (host.classList.contains('tut-game-card') ? 'tgc-float ' : 'tut-float ') + kind;
+      el.textContent = text;
+      host.appendChild(el);
+      setTimeout(() => el.remove(), 1400);
+    }
+
+    // ===== Pages 1-2: free-click example cards =====
+    qsa('.tut-clickable-card').forEach(card => {
+      card.addEventListener('click', () => {
+        if (card.classList.contains('consumed')) return;
+        const suit  = card.dataset.suit;
+        const value = parseInt(card.dataset.value, 10);
+        if (suit === 'S' || suit === 'C') {
+          const dmg = Math.min(tut.hp, value);
+          tut.hp = Math.max(0, tut.hp - value);
+          paintHP(); pulseHP('hurt');
+          floatText(card, '−' + dmg + ' HP', 'damage');
+          card.classList.add('flash-damage');
+        } else if (suit === 'H') {
+          const before = tut.hp;
+          tut.hp = Math.min(TUT_MAX_HP, tut.hp + value);
+          const gained = tut.hp - before;
+          paintHP(); pulseHP('heal');
+          floatText(card, gained > 0 ? '+' + gained + ' HP' : 'Already full', 'heal');
+          card.classList.add('flash-heal');
+        } else if (suit === 'D') {
+          floatText(card, '⛨ Equip ' + value, 'equip');
+          card.classList.add('flash-equip');
+        }
+        setTimeout(() => {
+          card.classList.remove('flash-damage', 'flash-heal', 'flash-equip');
+          card.classList.add('consumed');
+        }, 650);
+      });
+    });
+
+    // ===== Page 2 (guided playthrough) =====
+    // Two-phase: card click shows result text + an OK button; the OK button
+    // then advances to the next step's hint. The player reads at their own
+    // pace — no auto-advance timer.
+    const okBtn = document.getElementById('tut-ok-btn');
+
+    function showOkButton() {
+      if (!okBtn) return;
+      okBtn.style.display = '';
+      okBtn.textContent = tut.step >= SCRIPT.length ? 'Begin Descent ▸' : 'OK ▸';
+    }
+    function hideOkButton() {
+      if (okBtn) okBtn.style.display = 'none';
+    }
+
+    playCards.forEach(card => {
+      card.addEventListener('click', () => {
+        if (card.classList.contains('consumed')) return;
+        const cardStep = parseInt(card.dataset.step, 10);
+        if (tut.step >= SCRIPT.length || cardStep !== SCRIPT[tut.step].step) {
+          card.classList.add('flash-wrong');
+          setTimeout(() => card.classList.remove('flash-wrong'), 350);
+          return;
+        }
+        const stepDef = SCRIPT[tut.step];
+        const result = stepDef.run();
+        card.classList.add('flash-' + result.effect);
+        floatText(card, result.float, result.effect);
+        if (result.effect === 'damage' || result.effect === 'heal') {
+          paintHP(); pulseHP(result.effect);
+        }
+        if (result.effect === 'equip') paintWeapon();
+        // Show the result explanation right away.
+        if (stepText) stepText.innerHTML = stepDef.result;
+        tut.step++;
+        // Drop the highlight + mark card consumed once the flash settles.
+        setTimeout(() => {
+          card.classList.remove('flash-damage', 'flash-heal', 'flash-equip', 'active');
+          card.classList.add('consumed');
+        }, 700);
+        // Reveal the OK button — player advances when ready.
+        showOkButton();
+      });
+    });
+
+    if (okBtn) {
+      okBtn.addEventListener('click', () => {
+        Audio.play('click');
+        if (tut.step >= SCRIPT.length) {
+          // Final step — drop back to the home menu so the player can start
+          // a real descent.
+          hideOkButton();
+          showScreen('menu');
+          return;
+        }
+        // Advance to the next hint + highlight.
+        paintActive();
+        paintStepText();
+        hideOkButton();
+      });
+    }
+
+    // Reset wipes ALL tutorial state — both the free-click cards (if any)
+    // and the playthrough sequence.
+    function resetAll() {
+      tut.hp = TUT_MAX_HP;
+      tut.weapon = null;
+      tut.weaponStruck = null;
+      tut.step = 0;
+      qsa('.tut-clickable-card, .tut-game-card').forEach(c => {
+        c.classList.remove('consumed', 'active', 'flash-damage', 'flash-heal', 'flash-equip', 'flash-wrong');
+      });
+      paintHP();
+      paintWeapon();
+      paintActive();
+      paintStepText();
+      hideOkButton();
+    }
+    if (resetEl) resetEl.addEventListener('click', resetAll);
+
+    // Expose so tutNav() can re-call when the player enters the playthrough page.
+    window.__tutorialReset = resetAll;
+
+    // Initial paint
+    paintHP();
+    paintWeapon();
+    paintActive();
+    paintStepText();
+  })();
 
   // In-game controls
   $('skip-btn').addEventListener('click', () => { Audio.play('click'); doSkip(); });
