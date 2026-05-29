@@ -260,73 +260,6 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- TUTORIAL SCREEN                                               -->
-  <!-- ============================================================ -->
-  <section id="screen-tutorial" class="screen" data-screen="tutorial">
-    <div class="content-frame">
-      <h2 class="section-title">Tome of Tutelage</h2>
-      <!-- Interactive HP indicator at top of tutorial. Reacts to card clicks
-           on the pages below. Reset button restores 20/20 + re-enables all
-           tutorial cards. -->
-      <div class="tut-hp-indicator">
-        <span class="tut-hp-icon">♥</span>
-        <span class="tut-hp-text">HP&nbsp;<span id="tut-hp-val">20</span>&nbsp;/&nbsp;20</span>
-        <div class="tut-hp-bar"><div class="tut-hp-fill" id="tut-hp-fill"></div></div>
-        <button class="tut-hp-reset" id="tut-hp-reset" type="button">↻ Reset</button>
-      </div>
-
-      <div class="tutorial-pages" id="tutorial-pages">
-
-        <article class="tut-page active" data-page="0">
-          <h3>Try It — A Guided Room</h3>
-          <div class="tut-tooltip-wrap">
-            <p class="tut-tooltip-text" id="tut-step-text">Click the glowing <strong>3 ♣ Goblin</strong> to fight it.</p>
-            <button class="primary-btn tut-ok-btn" id="tut-ok-btn" type="button" style="display:none">OK ▸</button>
-          </div>
-
-          <div class="tut-game-scene">
-            <div class="tut-weapon-panel" id="tut-weapon-panel">
-              <span class="tut-weapon-label">Weapon</span>
-              <span class="tut-weapon-value" id="tut-weapon-val">None</span>
-            </div>
-
-            <div class="tut-game-room" id="tut-game-room">
-              <div class="tut-game-card monster" data-suit="C" data-value="3" data-step="0">
-                <span class="tgc-corner tl">3<br>♣</span>
-                <span class="tgc-art">♣</span>
-                <span class="tgc-name">GOBLIN</span>
-                <span class="tgc-corner br">3<br>♣</span>
-              </div>
-              <div class="tut-game-card weapon" data-suit="D" data-value="5" data-step="1">
-                <span class="tgc-corner tl">5<br>♦</span>
-                <span class="tgc-art">♦</span>
-                <span class="tgc-name">SWORD +5</span>
-                <span class="tgc-corner br">5<br>♦</span>
-              </div>
-              <div class="tut-game-card monster" data-suit="S" data-value="4" data-step="2">
-                <span class="tgc-corner tl">4<br>♠</span>
-                <span class="tgc-art">♠</span>
-                <span class="tgc-name">SKELETON</span>
-                <span class="tgc-corner br">4<br>♠</span>
-              </div>
-              <div class="tut-game-card potion" data-suit="H" data-value="6" data-step="3">
-                <span class="tgc-corner tl">6<br>♥</span>
-                <span class="tgc-art">♥</span>
-                <span class="tgc-name">POTION +6</span>
-                <span class="tgc-corner br">6<br>♥</span>
-              </div>
-            </div>
-
-            <div class="tut-step-counter">Step <span id="tut-step-num">1</span> of 4</div>
-          </div>
-        </article>
-
-      </div>
-      <button class="ghost-btn back-corner" data-back="menu">⟵ Return</button>
-    </div>
-  </section>
-
-  <!-- ============================================================ -->
   <!-- OPTIONS SCREEN                                                -->
   <!-- ============================================================ -->
   <section id="screen-options" class="screen" data-screen="options">
@@ -674,6 +607,33 @@
 
     <!-- Hint banner -->
     <div id="hint" class="hint-banner"></div>
+
+    <!-- ===========================================================
+         TUTORIAL OVERLAY — only visible when body.tutorial-mode is set.
+         Shows the scripted hint / result text and an OK button at the
+         bottom of the arena, plus a step counter in the top-right.
+         =========================================================== -->
+    <div id="tutorial-overlay" class="tutorial-overlay" aria-hidden="true">
+      <div class="tut-step-pill">
+        Step <span id="tut-step-num">1</span> of <span id="tut-step-total">8</span>
+      </div>
+      <div class="tut-dialog">
+        <p class="tut-dialog-text" id="tut-dialog-text">Click the glowing <strong>3 ♣ Goblin</strong> to fight it.</p>
+        <button class="primary-btn tut-ok-btn" id="tut-ok-btn" type="button" style="display:none">OK ▸</button>
+      </div>
+    </div>
+
+    <!-- End-of-tutorial choice prompt — appears after the 4th OK click. -->
+    <div id="tutorial-finish" class="tutorial-finish" aria-hidden="true">
+      <div class="tut-finish-frame">
+        <h2>Tutorial Complete</h2>
+        <p class="muted">You've learned the basics. Continue this run for a high score, or return to the main menu?</p>
+        <div class="overlay-buttons">
+          <button class="primary-btn" id="tut-finish-continue" type="button">Continue Descent ▸</button>
+          <button class="ghost-btn"  id="tut-finish-exit"     type="button">Return to Menu</button>
+        </div>
+      </div>
+    </div>
 
   </section>
 

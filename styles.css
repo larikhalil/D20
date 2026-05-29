@@ -4508,4 +4508,194 @@ body.mode-quick     .bg-stone::after { display: none !important; }
   background: rgba(0, 0, 0, 0.65);
 }
 
+/* ==============================================================
+   TUTORIAL OVERLAY (in-game) — bottom-center dialog + OK button +
+   top-right step counter. Visible only when body.tutorial-mode is
+   set. Cleared by the tutorial controller when the player picks
+   Continue or Return in the finish prompt.
+   ============================================================== */
+.tutorial-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  display: none;
+}
+body.tutorial-mode .tutorial-overlay { display: block; }
+
+.tut-step-pill {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: rgba(20, 12, 4, 0.85);
+  border: 1px solid var(--ga-gold-mid);
+  border-radius: 3px;
+  padding: 6px 12px;
+  font-family: var(--display-px);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--ga-gold-warm);
+  pointer-events: auto;
+}
+.tut-step-pill #tut-step-num {
+  color: var(--ga-gold-light);
+  font-size: 11px;
+}
+
+.tut-dialog {
+  position: absolute;
+  /* left + top are set per-step by positionTutorialBubble() in game.js so the
+     arrow lines up with the active target. .arrow-down/up center the bubble
+     horizontally on the target; .arrow-left/right center vertically. */
+  left: 50%;
+  top: 32%;
+  max-width: 340px;
+  min-width: 260px;
+  width: max-content;
+  background: rgba(20, 12, 4, 0.94);
+  border: 1.5px solid var(--ga-gold-mid);
+  border-radius: 4px;
+  padding: 14px 18px 12px;
+  pointer-events: auto;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 216, 58, 0.18),
+    0 14px 30px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  transition: left 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
+              top  0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.tut-dialog.arrow-down,
+.tut-dialog.arrow-up    { transform: translateX(-50%); }
+.tut-dialog.arrow-left,
+.tut-dialog.arrow-right { transform: translateY(-50%); }
+.tut-dialog::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 1px solid rgba(255, 216, 58, 0.35);
+  border-radius: 5px;
+  pointer-events: none;
+}
+/* Arrow tail — direction set by .arrow-{down,up,left,right} class. */
+.tut-dialog::after {
+  content: '';
+  position: absolute;
+  width: 0; height: 0;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+.tut-dialog.arrow-down::after {
+  left: 50%; bottom: -11px;
+  transform: translateX(-50%);
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-top: 11px solid var(--ga-gold-mid);
+}
+.tut-dialog.arrow-up::after {
+  left: 50%; top: -11px;
+  transform: translateX(-50%);
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-bottom: 11px solid var(--ga-gold-mid);
+}
+.tut-dialog.arrow-right::after {
+  top: 50%; right: -11px;
+  transform: translateY(-50%);
+  border-top: 11px solid transparent;
+  border-bottom: 11px solid transparent;
+  border-left: 11px solid var(--ga-gold-mid);
+}
+.tut-dialog.arrow-left::after {
+  top: 50%; left: -11px;
+  transform: translateY(-50%);
+  border-top: 11px solid transparent;
+  border-bottom: 11px solid transparent;
+  border-right: 11px solid var(--ga-gold-mid);
+}
+.tut-dialog-text {
+  margin: 0;
+  font-family: var(--body-px);
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--ga-gold-light);
+  text-align: center;
+}
+.tut-dialog-text strong { color: var(--ga-gold-warm); }
+
+.tut-ok-btn {
+  padding: 8px 22px !important;
+  font-size: 10px !important;
+  letter-spacing: 0.12em !important;
+  white-space: nowrap;
+  align-self: center;
+  animation: tut-ok-pulse 1.6s ease-in-out infinite;
+}
+
+/* Pulsing gold border on the active card during the tutorial. Applied by
+   the tutorial controller in renderCard/refresh. */
+body.tutorial-mode .card.tutorial-active {
+  z-index: 4;
+  animation: tut-card-pulse 1.2s ease-in-out infinite;
+}
+@keyframes tut-card-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 0 rgba(255, 216, 58, 0));
+    transform: translateY(0);
+  }
+  50% {
+    filter: drop-shadow(0 0 18px rgba(255, 216, 58, 0.85));
+    transform: translateY(-6px);
+  }
+}
+
+/* Finish prompt — centered modal with Continue / Return choice. */
+.tutorial-finish {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+body.tutorial-mode .tutorial-finish.active {
+  display: flex;
+  pointer-events: auto;
+}
+.tut-finish-frame {
+  background:
+    linear-gradient(180deg, rgba(28, 32, 40, 0.96) 0%, rgba(12, 14, 18, 0.98) 100%);
+  border: 1.5px solid var(--ga-gold-mid);
+  border-radius: 4px;
+  padding: 28px 36px;
+  max-width: 480px;
+  text-align: center;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 216, 58, 0.18),
+    0 30px 80px -20px rgba(0, 0, 0, 0.9);
+}
+.tut-finish-frame h2 {
+  font-family: var(--display-px);
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  color: var(--ga-gold-warm);
+  margin-bottom: 12px;
+}
+.tut-finish-frame p {
+  font-family: var(--body-px);
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--ga-gold-light);
+  margin-bottom: 20px;
+}
+
+/* Hide flee/undo HUD buttons while in the tutorial so the player can't
+   skip past the scripted sequence. Pause stays available. */
+body.tutorial-mode .ctrl-btn.flee-btn,
+body.tutorial-mode .ctrl-btn.undo-btn { opacity: 0.35; pointer-events: none; }
+
 

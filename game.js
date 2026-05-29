@@ -445,6 +445,12 @@ const state = {
   undoAllowed: true,
   showPeek: false,
   atmosphereMilestonesFired: [],
+  // Tutorial mode — when true, the first room is the scripted goblin / sword /
+  // skeleton / potion sequence and the UI is gated to the current step.
+  // After all 4 cards resolve, the player chooses to continue the run (scored)
+  // or return to the menu.
+  tutorialMode: false,
+  tutorialStep: 0,
   options: { sfx: true, music: false, anim: true, tip: true }
 };
 
@@ -478,12 +484,7 @@ function showScreen(name) {
   // Clean up in-game body classes when navigating away from the game so the
   // grey-crypt palette (scoped on body.mode-*) doesn't bleed into menus.
   if (name !== 'game') {
-    document.body.classList.remove('mode-quick', 'mode-adventure');
-  }
-  // Entering the tutorial screen resets the guided playthrough so it starts
-  // from a clean HP=20 / no-weapon state.
-  if (name === 'tutorial' && typeof window.__tutorialReset === 'function') {
-    window.__tutorialReset();
+    document.body.classList.remove('mode-quick', 'mode-adventure', 'tutorial-mode');
   }
 }
 function showOverlay(name) { $('overlay-' + name).classList.add('active'); }
@@ -2588,6 +2589,15 @@ function onCardClick(slotIndex, evt) {
   if (state.inputLocked || state.isOver) return;
   const card = state.room[slotIndex];
   if (!card) return;
+  // Tutorial mode: only the card matching the current scripted step is allowed.
+  if (state.tutorialMode) {
+    const step = TUTORIAL_SCRIPT[state.tutorialStep];
+    if (!step || card.suit !== step.expect.suit || card.value !== step.expect.value) {
+      shakeCard(slotIndex);
+      Audio.play('cant');
+      return;
+    }
+  }
   const kind = SUIT[card.suit].kind;
   if (kind === 'monster') {
     const forceBare = evt && evt.shiftKey;
@@ -2745,6 +2755,18 @@ function finalizeAction() {
     state.isOver = true;
     return endGame(false);
   }
+  // Tutorial mode: after a scripted CARD step resolves, show the result text
+  // + OK button instead of refilling the room. The tutorial controller
+  // advances the step (or shows the finish prompt after the last step) when
+  // OK is clicked. noCard (HUD-tip) steps never reach finalizeAction.
+  if (state.tutorialMode && state.tutorialStep < TUTORIAL_SCRIPT.length) {
+    const tStep = TUTORIAL_SCRIPT[state.tutorialStep];
+    if (tStep && !tStep.noCard) {
+      state.inputLocked = true;
+      showTutorialResult();
+      return;
+    }
+  }
   // Refill check: when only 1 card remains and deck has cards
   const remaining = state.room.filter(c => c !== null).length;
   const allEmpty = remaining === 0 && state.deck.length === 0;
@@ -2831,6 +2853,11 @@ function refillRoom() {
     state.inputLocked = false;
     renderHud();
     updatePeek();
+    // Tutorial: once the (pre-seeded) opening room is on the table, show the
+    // first step's hint + highlight. Only fires on step 0 so subsequent
+    // mid-tutorial refills (which don't happen — finalizeAction returns
+    // early in tutorial mode) wouldn't double-trigger anyway.
+    if (state.tutorialMode && state.tutorialStep === 0) showTutorialHint();
   }, delay + tail);
 }
 
@@ -2839,6 +2866,11 @@ function refillRoom() {
 // -----------------------------------------------------------
 function doSkip() {
   if (state.inputLocked || state.isOver) return;
+  if (state.tutorialMode) {
+    Audio.play('cant');
+    hint('Flee disabled during the tutorial', 1400);
+    return;
+  }
   if (state.skipsLeft <= 0) {
     Audio.play('cant');
     hint('No flees remain', 1400);
@@ -2881,6 +2913,11 @@ function doSkip() {
 // UNDO
 // -----------------------------------------------------------
 function doUndo() {
+  if (state.tutorialMode) {
+    Audio.play('cant');
+    hint('Undo disabled during the tutorial', 1400);
+    return;
+  }
   if (!state.undoAllowed) return;
   if (!state.undoSnapshot || state.undoUsed) return;
   if (state.inputLocked || state.isOver) return;
@@ -2916,14 +2953,261 @@ function updatePeek() {
 }
 
 // -----------------------------------------------------------
+// TUTORIAL CONTROLLER
+// -----------------------------------------------------------
+// The tutorial mode runs the real game with a pre-seeded first room
+// (3♣ Goblin, 5♦ Sword, 4♠ Skeleton, 6♥ Potion). For each of those
+// 4 cards a scripted hint is shown before the click and a result
+// explanation after. After the 4th OK, the player picks Continue
+// (run keeps going, scored) or Return (back to menu).
+const TUTORIAL_SCRIPT = [
+  {
+    expect: { suit: 'clubs', value: 3 },
+    hint: 'Click the glowing <strong>3 ♣ Goblin</strong> to fight it.',
+    result: 'Ouch — you took <strong>3 damage</strong> fighting bare-handed. Monsters deal their full value when you have no weapon.',
+    resultPointAt: 'hp'
+  },
+  {
+    expect: { suit: 'diamonds', value: 5 },
+    hint: 'Now click the <strong>5 ♦ Sword</strong> to equip it.',
+    result: '<strong>Sword equipped!</strong> Every monster you fight now deals 5 less damage. Strike the <strong>4 ♠ Skeleton</strong> next to see it in action.',
+    resultPointAt: 'weapon'
+  },
+  {
+    expect: { suit: 'spades', value: 4 },
+    hint: 'Strike the <strong>4 ♠ Skeleton</strong> with your sword.',
+    result: '<strong>Zero damage!</strong> Your sword absorbed all of it (4 − 5 = 0). But the blade is now battered — it can only fight monsters under value 4 from here on.',
+    resultPointAt: 'weapon'
+  },
+  {
+    expect: { suit: 'hearts', value: 6 },
+    hint: 'Drink the <strong>6 ♥ Potion</strong> to heal.',
+    result: '<strong>Room cleared!</strong> The potion restored your HP, capped at the maximum of 20.',
+    resultPointAt: 'hp'
+  },
+  // -- HUD-tip steps (no card click required — just OK to advance) --
+  {
+    noCard: true,
+    pointAt: 'flee',
+    hint: 'If a room looks deadly, hit <strong>Flee</strong>. The four cards go back to the bottom of the deck and a fresh room is dealt. You start with limited flee charges.'
+  },
+  {
+    noCard: true,
+    pointAt: 'undo',
+    hint: '<strong>Undo</strong> rewinds your last action — handy when you misclick. It’s only available on the easier difficulties.'
+  },
+  {
+    noCard: true,
+    pointAt: 'pause',
+    hint: '<strong>Pause</strong> stops the run. From there you can resume, restart, or abandon back to the menu.'
+  },
+  {
+    noCard: true,
+    pointAt: 'deck',
+    hint: 'The <strong>deck</strong> counter tracks how many cards are left. Clear every last one to win the run.'
+  }
+];
+
+// Track what the bubble should point at for the CURRENT phase. Cleared and
+// reset by showTutorialHint / showTutorialResult so positionTutorialBubble
+// can re-resolve when the window resizes or layout settles.
+let _tutPointTarget = null;
+
+// Show the current step's hint text. For card steps: highlights the card and
+// hides OK until clicked. For noCard (HUD-tip) steps: shows OK immediately so
+// the player can just acknowledge and advance.
+function showTutorialHint() {
+  const step = TUTORIAL_SCRIPT[state.tutorialStep];
+  if (!step) return;
+  const txt = $('tut-dialog-text');
+  const num = $('tut-step-num');
+  if (txt) txt.innerHTML = step.hint;
+  if (num) num.textContent = state.tutorialStep + 1;
+  const ok = $('tut-ok-btn');
+  qsa('.card.tutorial-active').forEach(c => c.classList.remove('tutorial-active'));
+  if (step.noCard) {
+    // HUD-tip step — show OK immediately, point at the HUD target.
+    if (ok) {
+      ok.style.display = '';
+      ok.textContent = state.tutorialStep === TUTORIAL_SCRIPT.length - 1
+        ? 'Finish ▸' : 'OK ▸';
+    }
+    _tutPointTarget = step.pointAt;
+  } else {
+    // Card step — wait for the click; highlight the card.
+    if (ok) ok.style.display = 'none';
+    highlightTutorialCard();
+    _tutPointTarget = 'card';
+  }
+  positionTutorialBubble();
+}
+
+// Show the result text + OK button after the player clicks the correct card.
+// Called from finalizeAction. Points at whatever the step's resultPointAt
+// says (default: the just-consumed card).
+function showTutorialResult() {
+  const step = TUTORIAL_SCRIPT[state.tutorialStep];
+  if (!step || step.noCard) return;
+  const txt = $('tut-dialog-text');
+  if (txt) txt.innerHTML = step.result;
+  const ok = $('tut-ok-btn');
+  if (ok) { ok.style.display = ''; ok.textContent = 'OK ▸'; }
+  qsa('.card.tutorial-active').forEach(c => c.classList.remove('tutorial-active'));
+  _tutPointTarget = step.resultPointAt || 'card';
+  positionTutorialBubble();
+}
+
+// Map a pointAt key to its DOM target + the side the arrow should sit on.
+function _resolveTutTarget(key) {
+  if (key === 'hp')     return { el: $('d20-container'), arrow: 'right' }; // bubble LEFT of D20
+  if (key === 'weapon') return { el: $('weapon-frame') || qs('.weapon-block'), arrow: 'up' };
+  if (key === 'flee')   return { el: $('skip-btn'),  arrow: 'up' };
+  if (key === 'undo')   return { el: $('undo-btn'),  arrow: 'up' };
+  if (key === 'pause')  return { el: $('pause-btn'), arrow: 'up' };
+  if (key === 'deck')   return { el: $('deck-stack'), arrow: 'up' };
+  // 'card' or unknown — find the slot for the current step's expected card,
+  // falling back to any .consumed card still in the DOM (result phase).
+  const step = TUTORIAL_SCRIPT[state.tutorialStep];
+  if (step && step.expect) {
+    for (let i = 0; i < 4; i++) {
+      const c = state.room[i];
+      if (c && c.suit === step.expect.suit && c.value === step.expect.value) {
+        return { el: $('slot-' + i), arrow: 'down' };
+      }
+    }
+  }
+  for (let i = 0; i < 4; i++) {
+    const s = $('slot-' + i);
+    if (s && qs('.card.consumed', s)) return { el: s, arrow: 'down' };
+  }
+  return { el: null, arrow: 'down' };
+}
+
+// Place the dialog so its arrow lines up with the resolved target. Coordinates
+// are viewport-relative (the dialog's containing block #tutorial-overlay sits
+// at viewport 0,0 via inset:0), so we use getBoundingClientRect values directly.
+function positionTutorialBubble() {
+  const dialog = qs('.tut-dialog');
+  if (!dialog) return;
+  const { el, arrow } = _resolveTutTarget(_tutPointTarget);
+  if (!el) return;
+  dialog.classList.remove('arrow-up', 'arrow-down', 'arrow-left', 'arrow-right');
+  dialog.classList.add('arrow-' + arrow);
+  const r = el.getBoundingClientRect();
+  const dh = dialog.offsetHeight;
+  const dw = dialog.offsetWidth;
+  const gap = 14;
+  let left, top;
+  if (arrow === 'down') {
+    // bubble ABOVE target, arrow at bottom (translateX -50%)
+    left = r.left + r.width / 2;
+    top  = r.top - dh - gap;
+  } else if (arrow === 'up') {
+    // bubble BELOW target (translateX -50%)
+    left = r.left + r.width / 2;
+    top  = r.bottom + gap;
+  } else if (arrow === 'right') {
+    // bubble LEFT of target, arrow on right (translateY -50%)
+    left = r.left - dw - gap;
+    top  = r.top + r.height / 2;
+  } else { // 'left'
+    left = r.right + gap;
+    top  = r.top + r.height / 2;
+  }
+  // Clamp inside viewport.
+  if (arrow === 'down' || arrow === 'up') {
+    left = Math.max(dw/2 + 8, Math.min(window.innerWidth - dw/2 - 8, left));
+    top  = Math.max(12, Math.min(window.innerHeight - dh - 12, top));
+  } else {
+    left = Math.max(8, Math.min(window.innerWidth - dw - 8, left));
+    top  = Math.max(dh/2 + 8, Math.min(window.innerHeight - dh/2 - 8, top));
+  }
+  dialog.style.left = left + 'px';
+  dialog.style.top  = top  + 'px';
+}
+
+// Pulsing gold glow on the slot matching the current step's expected card.
+function highlightTutorialCard() {
+  qsa('.card.tutorial-active').forEach(c => c.classList.remove('tutorial-active'));
+  const step = TUTORIAL_SCRIPT[state.tutorialStep];
+  if (!step) return;
+  for (let i = 0; i < 4; i++) {
+    const c = state.room[i];
+    if (c && c.suit === step.expect.suit && c.value === step.expect.value) {
+      const cardEl = qs('.card', $('slot-' + i));
+      if (cardEl) cardEl.classList.add('tutorial-active');
+      return;
+    }
+  }
+}
+
+// OK click handler — advances to the next step's hint, or shows the
+// Continue / Return prompt after the last step.
+function advanceTutorialStep() {
+  state.tutorialStep++;
+  if (state.tutorialStep >= TUTORIAL_SCRIPT.length) {
+    showTutorialFinish();
+    return;
+  }
+  // Unlock so the player can click the next card.
+  state.inputLocked = false;
+  showTutorialHint();
+}
+
+function showTutorialFinish() {
+  const f = $('tutorial-finish');
+  if (f) f.classList.add('active');
+  // Hide the dialog while the finish prompt is up.
+  const ovl = $('tutorial-overlay');
+  if (ovl) ovl.style.display = 'none';
+}
+
+// Called when the player picks Continue or Return from the finish prompt.
+// keepPlaying === true: drop tutorial mode, refill the room, normal play
+// resumes (and the run is scored on victory/defeat). false: back to menu.
+function finishTutorial(keepPlaying) {
+  const f = $('tutorial-finish');
+  if (f) f.classList.remove('active');
+  const ovl = $('tutorial-overlay');
+  if (ovl) ovl.style.display = '';
+  state.tutorialMode = false;
+  document.body.classList.remove('tutorial-mode');
+  if (!keepPlaying) {
+    state.isOver = true;
+    showScreen('menu');
+    return;
+  }
+  // Continue: deal the next room and let the game play out normally.
+  state.inputLocked = false;
+  refillRoom();
+}
+
+// -----------------------------------------------------------
 // NEW GAME / END GAME
 // -----------------------------------------------------------
-function newGame(diff) {
+function newGame(diff, tutorial) {
   if (diff) state.difficulty = diff;
   const cfg = DIFFICULTY[state.difficulty];
   state.maxHp = cfg.hp;
   state.hp = cfg.hp;
+  state.tutorialMode = !!tutorial;
+  state.tutorialStep = 0;
   state.deck = shuffle(buildDeck(state.difficulty));
+  if (state.tutorialMode) {
+    // Force the first 4 cards drawn to be the scripted tutorial sequence.
+    // Pull them out of wherever the shuffle dropped them and prepend in order.
+    const tut = [
+      { suit: 'clubs',    value: 3 },
+      { suit: 'diamonds', value: 5 },
+      { suit: 'spades',   value: 4 },
+      { suit: 'hearts',   value: 6 }
+    ];
+    for (const tc of tut) {
+      const idx = state.deck.findIndex(c => c.suit === tc.suit && c.value === tc.value);
+      if (idx >= 0) state.deck.splice(idx, 1);
+    }
+    state.deck = tut.concat(state.deck);
+  }
   state.room = [null, null, null, null];
   state.weapon = null;
   state.lastMonsterValue = null;
@@ -2954,6 +3238,7 @@ function newGame(diff) {
   // and short-circuits the cutscene; mode-adventure is the full presentation.
   document.body.classList.toggle('mode-quick', state.mode === 'quick');
   document.body.classList.toggle('mode-adventure', state.mode !== 'quick');
+  document.body.classList.toggle('tutorial-mode', state.tutorialMode);
 
   // Adventure mode entry (v0.6.0): open the door, zoom in through it, settle.
   // Combines the zoom-intro keyframe with the new door-swing for a "we just
@@ -3240,31 +3525,6 @@ function selectDifficulty(diff) {
 }
 
 // -----------------------------------------------------------
-// TUTORIAL
-// -----------------------------------------------------------
-let tutPage = 0;
-function tutNav(delta) {
-  const pages = qsa('.tut-page');
-  tutPage = Math.max(0, Math.min(pages.length - 1, tutPage + delta));
-  pages.forEach((p, i) => p.classList.toggle('active', i === tutPage));
-  // tut-progress / tut-prev / tut-next no longer exist (single-page tutorial),
-  // but guard anyway in case they come back.
-  const prog = $('tut-progress');
-  if (prog) prog.textContent = `${tutPage + 1} / ${pages.length}`;
-  const prev = $('tut-prev');
-  const next = $('tut-next');
-  if (prev) { prev.disabled = tutPage === 0;                 prev.style.opacity = tutPage === 0 ? 0.4 : 1; }
-  if (next) { next.disabled = tutPage === pages.length - 1;  next.style.opacity = tutPage === pages.length - 1 ? 0.4 : 1; }
-  Audio.play('card-flip');
-  // Entering a page with playthrough cards resets all tutorial state so the
-  // scripted sequence starts clean (HP=20, no weapon, nothing consumed).
-  const activePage = pages[tutPage];
-  if (activePage && activePage.querySelector('.tut-game-card') && typeof window.__tutorialReset === 'function') {
-    window.__tutorialReset();
-  }
-}
-
-// -----------------------------------------------------------
 // OPTIONS / TOGGLES
 // -----------------------------------------------------------
 function applyOptionsFromInputs() {
@@ -3319,6 +3579,13 @@ function wireEvents() {
       Audio.play('click');
       const action = btn.dataset.menu;
       if (action === 'play') newGame();   // legacy path; current menu uses data-mode
+      else if (action === 'tutorial') {
+        // Tutorial = real game run with a scripted first room. Mode defaults
+        // to quick (no door cinematic between cards) so the script flows fast.
+        state.mode = 'quick';
+        saveData({ lastMode: state.mode });
+        newGame(undefined, true);
+      }
       else showScreen(action);
     });
   });
@@ -3360,10 +3627,6 @@ function wireEvents() {
     showScreen('menu');
   });
 
-  // Tutorial nav (single-page now — these buttons may not exist).
-  $('tut-prev')?.addEventListener('click', () => tutNav(-1));
-  $('tut-next')?.addEventListener('click', () => tutNav(1));
-
   // Intro splash overlay — first thing the player sees on load. Either button
   // ([X] or "Enter the Crypt") dismisses it and reveals the home menu.
   qsa('[data-intro="dismiss"]').forEach(btn => {
@@ -3375,235 +3638,21 @@ function wireEvents() {
     });
   });
 
-  // Tutorial interactive — two pieces:
-  //   (1) Pages 1-2: free-click example cards that affect the shared HP bar
-  //   (2) Page 3:    scripted guided playthrough — same HP bar + a weapon
-  //                  panel + a step counter. The user clicks the GLOWING card
-  //                  at each step and a tooltip walks through the rules
-  //                  (bare-hand fight → equip → weapon strike → heal).
-  (function setupTutorialInteractive() {
-    const TUT_MAX_HP = 20;
-    const tut = { hp: TUT_MAX_HP, weapon: null, weaponStruck: null, step: 0 };
-
-    const valEl    = document.getElementById('tut-hp-val');
-    const fillEl   = document.getElementById('tut-hp-fill');
-    const resetEl  = document.getElementById('tut-hp-reset');
-    const stepText = document.getElementById('tut-step-text');
-    const stepNum  = document.getElementById('tut-step-num');
-    const wepPanel = document.getElementById('tut-weapon-panel');
-    const wepVal   = document.getElementById('tut-weapon-val');
-    const playCards = qsa('.tut-game-card');
-
-    // Scripted sequence for the playthrough page. Each step has a BEFORE-click
-    // hint and an AFTER-click result that explains the rule the player just
-    // demonstrated. The result text remains visible while the next card's
-    // highlight appears, so the player reads the rule before reacting.
-    const SCRIPT = [
-      {
-        step: 0,
-        hint: 'Click the glowing <strong>3 ♣ Goblin</strong> to fight it.',
-        result: 'Ouch — you took <strong>3 damage</strong> fighting bare-handed. Monsters deal their full value when you have no weapon. Equip the <strong>5 ♦ Sword</strong> next to reduce damage from future monsters.',
-        run() {
-          const dmg = Math.min(tut.hp, 3);
-          tut.hp -= dmg;
-          return { effect: 'damage', float: '−' + dmg + ' HP' };
-        }
-      },
-      {
-        step: 1,
-        hint: 'Now click the <strong>5 ♦ Sword</strong> to equip it.',
-        result: '<strong>Sword equipped!</strong> Every monster you fight now deals 5 less damage. Strike the <strong>4 ♠ Skeleton</strong> next to see it in action.',
-        run() {
-          tut.weapon = 5;
-          return { effect: 'equip', float: '⛨ Equipped' };
-        }
-      },
-      {
-        step: 2,
-        hint: 'Strike the <strong>4 ♠ Skeleton</strong> with your sword.',
-        result: '<strong>Zero damage!</strong> Your sword absorbed all of it (4 − 5 = 0). But the sword is now battered — it can only fight monsters under value 4 from here on. Heal up with the <strong>6 ♥ Potion</strong> next.',
-        run() {
-          tut.weaponStruck = 4;
-          return { effect: 'damage', float: '0 damage!' };
-        }
-      },
-      {
-        step: 3,
-        hint: 'Drink the <strong>6 ♥ Potion</strong> to heal.',
-        result: '🏆 <strong>Room cleared!</strong> The potion restored HP, capped at your maximum of 20. You\'ve learned the basics — press <strong>Return</strong> below to start your first real descent, or hit <strong>↻ Reset</strong> above to try this room again.',
-        run() {
-          const before = tut.hp;
-          tut.hp = Math.min(TUT_MAX_HP, tut.hp + 6);
-          const gained = tut.hp - before;
-          return { effect: 'heal', float: gained > 0 ? '+' + gained + ' HP' : 'Already full' };
-        }
-      }
-    ];
-
-    function paintHP() {
-      if (valEl)  valEl.textContent = tut.hp;
-      if (fillEl) fillEl.style.width = (tut.hp / TUT_MAX_HP * 100) + '%';
-    }
-    function pulseHP(kind) {
-      if (!fillEl) return;
-      fillEl.classList.remove('pulse-heal', 'pulse-hurt');
-      void fillEl.offsetWidth;
-      fillEl.classList.add(kind === 'heal' ? 'pulse-heal' : 'pulse-hurt');
-    }
-    function paintWeapon() {
-      if (!wepPanel || !wepVal) return;
-      if (tut.weapon) {
-        wepPanel.classList.add('equipped');
-        wepVal.textContent = tut.weapon + ' ♦';
-      } else {
-        wepPanel.classList.remove('equipped');
-        wepVal.textContent = 'None';
-      }
-    }
-    function paintActive() {
-      playCards.forEach(c => c.classList.remove('active'));
-      if (tut.step < SCRIPT.length) {
-        const want = SCRIPT[tut.step].step;
-        const target = playCards.find(c => parseInt(c.dataset.step, 10) === want);
-        if (target && !target.classList.contains('consumed')) target.classList.add('active');
-      }
-      if (stepNum) stepNum.textContent = Math.min(tut.step + 1, SCRIPT.length);
-    }
-    function paintStepText() {
-      if (!stepText) return;
-      // After all steps: keep the final step's "result" (room-cleared message).
-      // Otherwise: show the current step's pre-click hint.
-      stepText.innerHTML = tut.step >= SCRIPT.length
-        ? SCRIPT[SCRIPT.length - 1].result
-        : SCRIPT[tut.step].hint;
-    }
-    function floatText(host, text, kind) {
-      const el = document.createElement('div');
-      el.className = (host.classList.contains('tut-game-card') ? 'tgc-float ' : 'tut-float ') + kind;
-      el.textContent = text;
-      host.appendChild(el);
-      setTimeout(() => el.remove(), 1400);
-    }
-
-    // ===== Pages 1-2: free-click example cards =====
-    qsa('.tut-clickable-card').forEach(card => {
-      card.addEventListener('click', () => {
-        if (card.classList.contains('consumed')) return;
-        const suit  = card.dataset.suit;
-        const value = parseInt(card.dataset.value, 10);
-        if (suit === 'S' || suit === 'C') {
-          const dmg = Math.min(tut.hp, value);
-          tut.hp = Math.max(0, tut.hp - value);
-          paintHP(); pulseHP('hurt');
-          floatText(card, '−' + dmg + ' HP', 'damage');
-          card.classList.add('flash-damage');
-        } else if (suit === 'H') {
-          const before = tut.hp;
-          tut.hp = Math.min(TUT_MAX_HP, tut.hp + value);
-          const gained = tut.hp - before;
-          paintHP(); pulseHP('heal');
-          floatText(card, gained > 0 ? '+' + gained + ' HP' : 'Already full', 'heal');
-          card.classList.add('flash-heal');
-        } else if (suit === 'D') {
-          floatText(card, '⛨ Equip ' + value, 'equip');
-          card.classList.add('flash-equip');
-        }
-        setTimeout(() => {
-          card.classList.remove('flash-damage', 'flash-heal', 'flash-equip');
-          card.classList.add('consumed');
-        }, 650);
-      });
-    });
-
-    // ===== Page 2 (guided playthrough) =====
-    // Two-phase: card click shows result text + an OK button; the OK button
-    // then advances to the next step's hint. The player reads at their own
-    // pace — no auto-advance timer.
-    const okBtn = document.getElementById('tut-ok-btn');
-
-    function showOkButton() {
-      if (!okBtn) return;
-      okBtn.style.display = '';
-      okBtn.textContent = tut.step >= SCRIPT.length ? 'Begin Descent ▸' : 'OK ▸';
-    }
-    function hideOkButton() {
-      if (okBtn) okBtn.style.display = 'none';
-    }
-
-    playCards.forEach(card => {
-      card.addEventListener('click', () => {
-        if (card.classList.contains('consumed')) return;
-        const cardStep = parseInt(card.dataset.step, 10);
-        if (tut.step >= SCRIPT.length || cardStep !== SCRIPT[tut.step].step) {
-          card.classList.add('flash-wrong');
-          setTimeout(() => card.classList.remove('flash-wrong'), 350);
-          return;
-        }
-        const stepDef = SCRIPT[tut.step];
-        const result = stepDef.run();
-        card.classList.add('flash-' + result.effect);
-        floatText(card, result.float, result.effect);
-        if (result.effect === 'damage' || result.effect === 'heal') {
-          paintHP(); pulseHP(result.effect);
-        }
-        if (result.effect === 'equip') paintWeapon();
-        // Show the result explanation right away.
-        if (stepText) stepText.innerHTML = stepDef.result;
-        tut.step++;
-        // Drop the highlight + mark card consumed once the flash settles.
-        setTimeout(() => {
-          card.classList.remove('flash-damage', 'flash-heal', 'flash-equip', 'active');
-          card.classList.add('consumed');
-        }, 700);
-        // Reveal the OK button — player advances when ready.
-        showOkButton();
-      });
-    });
-
-    if (okBtn) {
-      okBtn.addEventListener('click', () => {
-        Audio.play('click');
-        if (tut.step >= SCRIPT.length) {
-          // Final step — drop back to the home menu so the player can start
-          // a real descent.
-          hideOkButton();
-          showScreen('menu');
-          return;
-        }
-        // Advance to the next hint + highlight.
-        paintActive();
-        paintStepText();
-        hideOkButton();
-      });
-    }
-
-    // Reset wipes ALL tutorial state — both the free-click cards (if any)
-    // and the playthrough sequence.
-    function resetAll() {
-      tut.hp = TUT_MAX_HP;
-      tut.weapon = null;
-      tut.weaponStruck = null;
-      tut.step = 0;
-      qsa('.tut-clickable-card, .tut-game-card').forEach(c => {
-        c.classList.remove('consumed', 'active', 'flash-damage', 'flash-heal', 'flash-equip', 'flash-wrong');
-      });
-      paintHP();
-      paintWeapon();
-      paintActive();
-      paintStepText();
-      hideOkButton();
-    }
-    if (resetEl) resetEl.addEventListener('click', resetAll);
-
-    // Expose so tutNav() can re-call when the player enters the playthrough page.
-    window.__tutorialReset = resetAll;
-
-    // Initial paint
-    paintHP();
-    paintWeapon();
-    paintActive();
-    paintStepText();
-  })();
+  // Tutorial overlay wiring — OK button + finish prompt buttons. The overlay
+  // is driven by the TUTORIAL_SCRIPT controller defined above newGame(); these
+  // handlers just connect the DOM events.
+  $('tut-ok-btn')?.addEventListener('click', () => {
+    Audio.play('click');
+    advanceTutorialStep();
+  });
+  $('tut-finish-continue')?.addEventListener('click', () => {
+    Audio.play('click');
+    finishTutorial(true);
+  });
+  $('tut-finish-exit')?.addEventListener('click', () => {
+    Audio.play('click');
+    finishTutorial(false);
+  });
 
   // In-game controls
   $('skip-btn').addEventListener('click', () => { Audio.play('click'); doSkip(); });
