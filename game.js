@@ -2479,13 +2479,57 @@ function renderHud() {
   updateAtmosphere();
 }
 
+// HP colour grade: full=gold, mid=amber, low=blood. Smoothly lerps through
+// amber at the 50% mark so the meter visibly "bleeds" as vitality drops.
+const HP_GRADE = {
+  full: [232, 200, 120],   // gold  #e8c878
+  mid:  [217, 122,  60],   // amber #d97a3c
+  low:  [197,  40,  40],   // blood #c52828
+};
+function _hpLerp(a, b, t) {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+  ];
+}
+function _hpRgb(frac) {
+  if (frac >= 0.5) return _hpLerp(HP_GRADE.mid, HP_GRADE.full, (frac - 0.5) / 0.5);
+  return _hpLerp(HP_GRADE.low, HP_GRADE.mid, frac / 0.5);
+}
 function renderHp(opts={}) {
   const num = $('hp-number');
   num.textContent = state.hp;
   num.classList.toggle('low', state.hp <= 6);
+
   const bar = $('hp-bar');
-  bar.style.height = Math.max(0, Math.min(100, (state.hp / state.maxHp) * 100)) + '%';
+  if (!bar) return;
+  const frac = Math.max(0, Math.min(1, state.hp / state.maxHp));
+  const [r, g, b] = _hpRgb(frac);
+  // glossy vertical gradient: a lighter top edge over the graded base colour
+  const top = `rgb(${Math.min(255, r + 30)}, ${Math.min(255, g + 30)}, ${Math.min(255, b + 24)})`;
+  const base = `rgb(${r}, ${g}, ${b})`;
+  bar.style.width = (frac * 100) + '%';
+  bar.style.setProperty('--hp-fill', `linear-gradient(180deg, ${top}, ${base})`);
+  bar.style.setProperty('--hp-glow', `rgba(${r}, ${g}, ${b}, 0.65)`);
   bar.classList.toggle('low', state.hp <= 6);
+  bar.classList.toggle('crit', state.hp <= 3);
+
+  // D20 life-state: healthy glow / wounded unease / dying throb + cracks.
+  const cont = $('d20-container');
+  if (cont) {
+    const alive = state.hp > 0;
+    cont.classList.toggle('full',    alive && frac >= 0.999);
+    cont.classList.toggle('wounded', alive && state.hp <= 6 && state.hp > 3);
+    cont.classList.toggle('dying',   alive && state.hp <= 3);
+  }
+
+  // brief flare when the value just changed (driven from applyHpChange)
+  if (opts.pulse) {
+    const cls = opts.pulse === 'damage' ? 'pulse-damage' : 'pulse-heal';
+    bar.classList.remove('pulse-damage', 'pulse-heal'); void bar.offsetWidth;
+    bar.classList.add(cls);
+  }
 }
 
 // -----------------------------------------------------------
@@ -2571,6 +2615,36 @@ function flashScreen(color) {
   setTimeout(() => f.classList.remove('show-' + color), 220);
 }
 
+// Damage-scaled impact feel: arena shake throw, red edge-vignette pulse, and a
+// hit-stop punch on heavy blows. All intensities ramp with `dmg` so a 2 reads
+// light and a 13 reads devastating. No-op when animations are disabled.
+function impactFeedback(dmg) {
+  if (!state.options.anim || dmg <= 0) return;
+  const mag = Math.max(3, Math.min(15, dmg));        // shake throw in px
+  const arena = qs('.dungeon-arena');
+  if (arena) {
+    arena.style.setProperty('--shake-mag', mag + 'px');
+    arena.classList.remove('arena-shake'); void arena.offsetWidth;
+    arena.classList.add('arena-shake');
+    setTimeout(() => arena.classList.remove('arena-shake'), 380);
+  }
+  const v = $('impact-vignette');
+  if (v) {
+    v.style.setProperty('--dmg-alpha', Math.min(0.72, 0.16 + dmg * 0.045).toFixed(3));
+    v.classList.remove('show'); void v.offsetWidth;
+    v.classList.add('show');
+    setTimeout(() => v.classList.remove('show'), 440);
+  }
+  if (dmg >= 8) {
+    const app = $('app');
+    if (app) {
+      app.classList.remove('hitstop'); void app.offsetWidth;
+      app.classList.add('hitstop');
+      setTimeout(() => app.classList.remove('hitstop'), 100);
+    }
+  }
+}
+
 // -----------------------------------------------------------
 // HP CHANGE
 // -----------------------------------------------------------
@@ -2588,6 +2662,7 @@ function applyHpChange(delta, reason) {
     floater.classList.remove('show-damage','show-heal'); void floater.offsetWidth;
     floater.classList.add('show-damage');
     flashScreen('red');
+    impactFeedback(-real);
     Audio.play('damage');
   } else if (real > 0) {
     cont.classList.remove('heal-pulse'); void cont.offsetWidth;
@@ -2604,7 +2679,7 @@ function applyHpChange(delta, reason) {
 
   // animate number
   animateNumber(before, state.hp, 'hp-number', 600);
-  setTimeout(() => renderHp(), 60);
+  setTimeout(() => renderHp({ pulse: real < 0 ? 'damage' : (real > 0 ? 'heal' : null) }), 60);
 }
 
 function animateNumber(from, to, elId, dur) {
@@ -3125,7 +3200,7 @@ function showTutorialHint() {
     highlightTutorialCard();
     _tutPointTarget = 'card';
   }
-  positionTutorialBubble();
+  scheduleTutReposition();
 }
 
 // Show the result text + OK button after the player clicks the correct card.
@@ -3140,7 +3215,7 @@ function showTutorialResult() {
   if (ok) { ok.style.display = ''; ok.textContent = 'OK ▸'; }
   qsa('.card.tutorial-active').forEach(c => c.classList.remove('tutorial-active'));
   _tutPointTarget = step.resultPointAt || 'card';
-  positionTutorialBubble();
+  scheduleTutReposition();
 }
 
 // Map a pointAt key to its DOM target + the side the arrow should sit on.
@@ -3169,45 +3244,77 @@ function _resolveTutTarget(key) {
   return { el: null, arrow: 'down' };
 }
 
-// Place the dialog so its arrow lines up with the resolved target. Coordinates
-// are viewport-relative (the dialog's containing block #tutorial-overlay sits
-// at viewport 0,0 via inset:0), so we use getBoundingClientRect values directly.
+// Position the spotlight over the resolved target and dock the dialog on the
+// side with the most room. All geometry is computed RELATIVE TO THE OVERLAY's
+// own rect (not assumed to be at viewport 0,0), so it stays aligned regardless
+// of page layout, scroll, or screen size. No arrow tail — the lit hole directs
+// the eye, which removes the old "arrow points at nothing after clamp" bug.
+// Re-run positioning across the next few frames so the spotlight/dialog settle
+// onto targets even while the deal-in / cutscene animations are still moving
+// layout around. Cheap (a handful of measures) and only while in tutorial mode.
+function scheduleTutReposition() {
+  positionTutorialBubble();
+  requestAnimationFrame(positionTutorialBubble);
+  setTimeout(positionTutorialBubble, 120);
+  setTimeout(positionTutorialBubble, 380);
+}
+
 function positionTutorialBubble() {
-  const dialog = qs('.tut-dialog');
-  if (!dialog) return;
-  const { el, arrow } = _resolveTutTarget(_tutPointTarget);
-  if (!el) return;
-  dialog.classList.remove('arrow-up', 'arrow-down', 'arrow-left', 'arrow-right');
-  dialog.classList.add('arrow-' + arrow);
-  const r = el.getBoundingClientRect();
-  const dh = dialog.offsetHeight;
-  const dw = dialog.offsetWidth;
-  const gap = 14;
+  const dialog = $('tut-dialog');
+  const spot   = $('tut-spotlight');
+  const ovl    = $('tutorial-overlay');
+  if (!dialog || !ovl) return;
+  const orect = ovl.getBoundingClientRect();
+
+  const { el } = _resolveTutTarget(_tutPointTarget);
+
+  // --- Spotlight ---
+  if (spot) {
+    if (el) {
+      const r = el.getBoundingClientRect();
+      const pad = 8;
+      const sx = r.left - orect.left - pad;
+      const sy = r.top  - orect.top  - pad;
+      const sw = r.width  + pad * 2;
+      const sh = r.height + pad * 2;
+      spot.style.left   = sx + 'px';
+      spot.style.top    = sy + 'px';
+      spot.style.width  = sw + 'px';
+      spot.style.height = sh + 'px';
+      spot.classList.add('show', 'pulse');
+    } else {
+      // No concrete target — dim the whole arena, no lit hole.
+      spot.classList.remove('show', 'pulse');
+    }
+  }
+
+  // --- Dialog: dock on the side of the target with more vertical room ---
+  const dh = dialog.offsetHeight || 120;
+  const dw = dialog.offsetWidth  || 300;
+  const gap = 20;
+  const topSafe = 64;                       // clear the step pill / HUD top
   let left, top;
-  if (arrow === 'down') {
-    // bubble ABOVE target, arrow at bottom (translateX -50%)
-    left = r.left + r.width / 2;
-    top  = r.top - dh - gap;
-  } else if (arrow === 'up') {
-    // bubble BELOW target (translateX -50%)
-    left = r.left + r.width / 2;
-    top  = r.bottom + gap;
-  } else if (arrow === 'right') {
-    // bubble LEFT of target, arrow on right (translateY -50%)
-    left = r.left - dw - gap;
-    top  = r.top + r.height / 2;
-  } else { // 'left'
-    left = r.right + gap;
-    top  = r.top + r.height / 2;
-  }
-  // Clamp inside viewport.
-  if (arrow === 'down' || arrow === 'up') {
-    left = Math.max(dw/2 + 8, Math.min(window.innerWidth - dw/2 - 8, left));
-    top  = Math.max(12, Math.min(window.innerHeight - dh - 12, top));
+
+  if (el) {
+    const r = el.getBoundingClientRect();
+    const ty = r.top - orect.top;           // target top within overlay
+    const tcx = r.left - orect.left + r.width / 2;
+    const spaceAbove = ty - topSafe;
+    const spaceBelow = orect.height - (ty + r.height) - 16;
+    if (spaceAbove >= dh + gap || spaceAbove >= spaceBelow) {
+      top = ty - dh - gap;                  // above the target
+    } else {
+      top = ty + r.height + gap;            // below the target
+    }
+    left = tcx;
   } else {
-    left = Math.max(8, Math.min(window.innerWidth - dw - 8, left));
-    top  = Math.max(dh/2 + 8, Math.min(window.innerHeight - dh/2 - 8, top));
+    left = orect.width / 2;
+    top  = orect.height - dh - 28;
   }
+
+  // Clamp within the overlay (no arrow → free to clamp horizontally).
+  top  = Math.max(topSafe, Math.min(orect.height - dh - 16, top));
+  left = Math.max(dw / 2 + 10, Math.min(orect.width - dw / 2 - 10, left));
   dialog.style.left = left + 'px';
   dialog.style.top  = top  + 'px';
 }
@@ -3702,16 +3809,29 @@ function wireEvents() {
       showScreen(btn.dataset.back);
     });
   });
-  // Difficulty cards
+  // Difficulty cards — one click selects the peril AND returns to the menu
+  // (no separate Confirm step). A brief "ignite" flourish plays on the chosen
+  // card before the screen slides back so the choice registers visually.
   qsa('.diff-card').forEach(card => {
     card.addEventListener('click', () => {
+      if (card._igniting) return;          // guard against double-fire mid-flourish
       Audio.play('click');
       selectDifficulty(card.dataset.diff);
+      const flourish = !document.body.classList.contains('no-anim')
+        && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (flourish) {
+        card._igniting = true;
+        card.classList.remove('igniting'); void card.offsetWidth;
+        card.classList.add('igniting');
+        setTimeout(() => {
+          card.classList.remove('igniting');
+          card._igniting = false;
+          showScreen('menu');
+        }, 360);
+      } else {
+        showScreen('menu');
+      }
     });
-  });
-  qs('[data-difficulty-confirm]').addEventListener('click', () => {
-    Audio.play('click');
-    showScreen('menu');
   });
 
   // Intro splash overlay — first thing the player sees on load. Either button
@@ -3739,6 +3859,10 @@ function wireEvents() {
   $('tut-finish-exit')?.addEventListener('click', () => {
     Audio.play('click');
     finishTutorial(false);
+  });
+  // Keep the spotlight/dialog locked onto its target through resize & rotate.
+  window.addEventListener('resize', () => {
+    if (state.tutorialMode) positionTutorialBubble();
   });
 
   // In-game controls

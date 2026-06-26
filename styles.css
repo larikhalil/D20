@@ -872,6 +872,34 @@ body.mode-adventure .player-layer.action-attack {
 .flash-overlay.show-blue  { background: var(--mystic);   opacity: 0.22; }
 .flash-overlay.show-gold  { background: var(--gold);     opacity: 0.3; }
 
+/* Damage vignette — a blood-red edge bloom that snaps in then fades. Opacity
+   scaled to the hit via --dmg-alpha (set in impactFeedback). */
+.impact-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 99;
+  background: radial-gradient(ellipse at center,
+    transparent 42%,
+    rgba(150, 20, 20, 0.35) 78%,
+    rgba(110, 8, 8, 0.85) 100%);
+}
+.impact-vignette.show { animation: impact-vignette-pulse 0.42s ease-out; }
+@keyframes impact-vignette-pulse {
+  0%   { opacity: 0; }
+  18%  { opacity: var(--dmg-alpha, 0.45); }
+  100% { opacity: 0; }
+}
+
+/* Hit-stop punch — a tiny global recoil on heavy blows reads as weight. */
+#app.hitstop { animation: hitstop-punch 0.09s ease-out; }
+@keyframes hitstop-punch {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(0.984); }
+  100% { transform: scale(1); }
+}
+
 /* =============================================================
    SCREENS
    ============================================================= */
@@ -1524,12 +1552,49 @@ body.mode-quick .stage-banner  { font-size: 10px; letter-spacing: 0.22em; }
   50%      { box-shadow: 0 0 14px rgba(197,40,40,0.5); }
 }
 
+/* Ignite flourish — plays on the chosen peril before the screen slides back
+   to the menu (one-click select, no Confirm step). */
+.diff-card.igniting {
+  animation: diff-ignite 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  z-index: 3;
+}
+.diff-card.igniting::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(255,216,58,0.55), rgba(217,122,60,0.25) 45%, transparent 70%);
+  animation: diff-ignite-glow 0.36s ease-out both;
+}
+@keyframes diff-ignite {
+  0%   { transform: translateY(-2px) scale(1); }
+  35%  { transform: translateY(-6px) scale(1.06); box-shadow: 0 0 26px rgba(255,216,58,0.85), 0 0 60px rgba(217,122,60,0.5); }
+  100% { transform: translateY(-2px) scale(1.02); box-shadow: 0 0 14px rgba(255,216,58,0.5); }
+}
+@keyframes diff-ignite-glow {
+  0%   { opacity: 0; }
+  40%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.diff-hint {
+  text-align: center;
+  font-family: var(--body-px, var(--body));
+  font-size: 13px;
+  color: var(--ga-gold-mid);
+  opacity: 0.7;
+  margin-top: 18px;
+  letter-spacing: 0.04em;
+}
+
 .form-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   margin-top: 28px;
 }
+.form-row.form-row-single { justify-content: center; }
 
 /* =============================================================
    GENERIC BUTTONS
@@ -2641,14 +2706,16 @@ body.cutscene-active .player-layer {
 .dungeon-arena.arena-shake {
   animation: arena-shake-anim 0.36s ease-in-out;
 }
+/* --shake-mag scales the throw distance with the damage taken (set in JS).
+   Defaults to 4px so the cutscene's plain smash-shake feels as before. */
 @keyframes arena-shake-anim {
   0%, 100% { transform: translate(0, 0); }
-  15%      { transform: translate(-4px, -2px); }
-  30%      { transform: translate(3px, 3px); }
-  45%      { transform: translate(-3px, 2px); }
-  60%      { transform: translate(3px, -2px); }
-  75%      { transform: translate(-2px, 1px); }
-  90%      { transform: translate(2px, -1px); }
+  15%      { transform: translate(calc(var(--shake-mag, 4px) * -1),    -2px); }
+  30%      { transform: translate(var(--shake-mag, 4px),                3px); }
+  45%      { transform: translate(calc(var(--shake-mag, 4px) * -0.8),   2px); }
+  60%      { transform: translate(calc(var(--shake-mag, 4px) *  0.8),  -2px); }
+  75%      { transform: translate(calc(var(--shake-mag, 4px) * -0.5),   1px); }
+  90%      { transform: translate(calc(var(--shake-mag, 4px) *  0.5),  -1px); }
 }
 
 /* =============================================================
@@ -3312,6 +3379,51 @@ body.mode-quick .peek-strip {
   100% { transform: scale(1); filter: hue-rotate(0deg) brightness(1); }
 }
 
+/* ---- The D20 as a living vitality core ----------------------------------
+   Life-state classes are toggled in renderHp(): .full (healthy gold aura),
+   .wounded (≤6 HP — red unease + tremble), .dying (≤3 HP — violent throb +
+   blood cracks). These layer UNDER the transient damage-roll/heal-pulse. */
+.d20-container.full .d20-svg {
+  filter: drop-shadow(0 0 6px rgba(232, 200, 120, 0.5));
+}
+.d20-container.wounded:not(.damage-roll):not(.heal-pulse) .d20-svg {
+  filter: drop-shadow(0 0 7px rgba(197, 40, 40, 0.55));
+  animation: d20-wounded 1.5s ease-in-out infinite;
+}
+.d20-container.dying:not(.damage-roll):not(.heal-pulse) .d20-svg {
+  filter: drop-shadow(0 0 10px rgba(232, 40, 40, 0.8));
+  animation: d20-dying 0.7s ease-in-out infinite;
+}
+@keyframes d20-wounded {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  25%      { transform: translateX(-0.6px) rotate(-0.5deg); }
+  75%      { transform: translateX(0.6px) rotate(0.5deg); }
+}
+@keyframes d20-dying {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20%      { transform: translate(-1.4px, 0.4px) rotate(-1deg); }
+  40%      { transform: translate(1.4px, -0.4px) rotate(1deg); }
+  60%      { transform: translate(-1px, 0.6px) rotate(-0.6deg); }
+  80%      { transform: translate(1px, -0.4px) rotate(0.6deg); }
+}
+/* Blood cracks bleeding through the die at death's door. */
+.d20-container.dying::before {
+  content: "";
+  position: absolute;
+  inset: 14%;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(circle at 38% 30%, rgba(232, 30, 30, 0.55), transparent 40%),
+    radial-gradient(circle at 64% 62%, rgba(200, 20, 20, 0.45), transparent 38%);
+  mix-blend-mode: screen;
+  animation: d20-crack-throb 0.7s ease-in-out infinite;
+}
+@keyframes d20-crack-throb {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 0.85; }
+}
+
 .hp-number {
   position: absolute;
   font-family: var(--display-px);
@@ -3343,48 +3455,109 @@ body.mode-quick .peek-strip {
   opacity: 0;
   z-index: 5;
 }
-.hp-floater.show-damage { animation: float-damage 1.1s ease-out; }
-.hp-floater.show-heal   { animation: float-heal 1.1s ease-out; }
+.hp-floater {
+  text-shadow: 0 2px 0 #000, 0 0 12px currentColor;
+  letter-spacing: -0.02em;
+}
+.hp-floater.show-damage { animation: float-damage 1.15s cubic-bezier(0.18, 0.9, 0.32, 1); }
+.hp-floater.show-heal   { animation: float-heal 1.15s cubic-bezier(0.18, 0.9, 0.32, 1); }
 
+/* Weighty overshoot pop, then an arc up-and-aside as it fades. */
 @keyframes float-damage {
-  0%   { opacity: 0; transform: translate(-50%, 30px) scale(0.5); color: var(--blood-bright); }
-  20%  { opacity: 1; transform: translate(-50%, 0) scale(1.2); color: var(--blood-bright); }
-  100% { opacity: 0; transform: translate(-50%, -60px) scale(1); color: var(--blood); }
+  0%   { opacity: 0; transform: translate(-50%, 26px) scale(0.4) rotate(-6deg); color: var(--blood-bright); }
+  16%  { opacity: 1; transform: translate(-50%, -2px) scale(1.45) rotate(2deg); color: var(--blood-bright); }
+  30%  { transform: translate(-50%, -6px) scale(1.05) rotate(0deg); }
+  100% { opacity: 0; transform: translate(-30%, -64px) scale(0.95) rotate(5deg); color: var(--blood); }
 }
 @keyframes float-heal {
-  0%   { opacity: 0; transform: translate(-50%, 30px) scale(0.5); color: var(--toxin-bright); }
-  20%  { opacity: 1; transform: translate(-50%, 0) scale(1.2); color: var(--toxin-bright); }
-  100% { opacity: 0; transform: translate(-50%, -60px) scale(1); color: var(--toxin); }
+  0%   { opacity: 0; transform: translate(-50%, 26px) scale(0.4) rotate(6deg); color: var(--toxin-bright); }
+  16%  { opacity: 1; transform: translate(-50%, -2px) scale(1.45) rotate(-2deg); color: var(--toxin-bright); }
+  30%  { transform: translate(-50%, -6px) scale(1.05) rotate(0deg); }
+  100% { opacity: 0; transform: translate(-70%, -64px) scale(0.95) rotate(-5deg); color: var(--toxin); }
 }
 
+/* ---- Vitality meter (liquid HP bar) ----------------------------------
+   The bar is a horizontal fill: JS sets its WIDTH (% of max HP) and the
+   colour-grade vars (--hp-fill / --hp-glow gold→amber→blood). A moving
+   shimmer + a bright leading edge sell the "liquid vitality" read. The
+   earlier code drove `height` here, which did nothing on a top/bottom
+   pinned rail — that was the "bar never moves" bug. */
 .hp-rail {
-  width: 70px;
-  height: 12px;
-  background: rgba(0, 0, 0, 0.6);
+  width: 78px;
+  height: 14px;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0.85), rgba(0,0,0,0.55));
   border: 1px solid var(--ga-gold-mid);
-  border-radius: 2px;
+  border-radius: 4px;
   overflow: hidden;
   position: relative;
   margin-top: 10px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.8), 0 0 0 1px rgba(0,0,0,0.4);
+}
+/* faint empty-track ticks behind the fill */
+.hp-rail::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg,
+    rgba(255,255,255,0.04) 0 1px, transparent 1px 9px);
+  pointer-events: none;
 }
 .hp-bar {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  background: repeating-linear-gradient(90deg,
-    var(--ga-club-rage) 0 4px,
-    var(--ga-heart-ruby) 4px 6px
-  );
-  box-shadow: 0 0 6px rgba(255, 80, 80, 0.5);
-  transition: width 0.4s ease-out;
+  width: 100%;                 /* JS overrides with the HP percentage */
+  background: var(--hp-fill,
+    linear-gradient(180deg, #f0d088, #e8c878));
+  box-shadow: 0 0 8px var(--hp-glow, rgba(232,200,120,0.6)),
+              inset 0 1px 0 rgba(255,255,255,0.25);
+  border-radius: inherit;
+  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1), filter 0.3s;
+}
+/* travelling shimmer along the fill */
+.hp-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%,
+    rgba(255,255,255,0.32) 50%, transparent 100%);
+  background-size: 220% 100%;
+  mix-blend-mode: screen;
+  animation: hp-shimmer 2.6s linear infinite;
+}
+/* bright liquid leading edge */
+.hp-bar::after {
+  content: "";
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: rgba(255,246,222,0.95);
+  box-shadow: 0 0 8px 2px var(--hp-glow, rgba(232,200,120,0.8));
+}
+@keyframes hp-shimmer {
+  0%   { background-position: 220% 0; }
+  100% { background-position: -120% 0; }
+}
+/* pulse the leading edge when HP changes */
+.hp-bar.pulse-damage { animation: hp-pulse-dmg 0.5s ease-out; }
+.hp-bar.pulse-heal   { animation: hp-pulse-heal 0.5s ease-out; }
+@keyframes hp-pulse-dmg {
+  0%   { filter: brightness(1.8) saturate(1.4); }
+  100% { filter: brightness(1) saturate(1); }
+}
+@keyframes hp-pulse-heal {
+  0%   { filter: brightness(1.6) drop-shadow(0 0 6px var(--toxin-bright, #84d878)); }
+  100% { filter: brightness(1); }
 }
 .hp-bar.low {
   animation: ga-hp-blink 0.8s infinite alternate;
 }
+.hp-bar.crit { animation: ga-hp-blink 0.45s infinite alternate; }
 @keyframes ga-hp-blink {
   0%   { filter: brightness(1.0); }
-  100% { filter: brightness(1.6); }
+  100% { filter: brightness(1.7); }
 }
 .hp-rail-label {
   font-family: var(--display-px);
@@ -3807,8 +3980,8 @@ body.mode-quick .peek-strip {
   }
   .d20-container { width: 80px; height: 80px; }
   .hp-number { font-size: 28px; padding-top: 4px; }
-  .hp-rail { width: 120px; height: 14px; }
-  .hp-bar { background: linear-gradient(90deg, var(--blood) 0%, var(--torch) 50%, var(--torch-bright) 100%); }
+  .hp-rail { width: 120px; height: 16px; }
+  /* fill colour comes from the JS-driven --hp-fill var (set in renderHp) */
   .hp-rail-label { display: none; }
   .d20-aura { display: none; }
 
@@ -4542,24 +4715,54 @@ body.tutorial-mode .tutorial-overlay { display: block; }
   font-size: 11px;
 }
 
+/* ---- Spotlight: dim everything, punch a glowing hole at the target ----
+   The dark veil is the element's own huge box-shadow spread, so the only lit
+   area is the target rect itself. pointer-events:none keeps the card clickable
+   through the hole. JS sets left/top/width/height from the measured rect. */
+.tut-spotlight {
+  position: absolute;
+  left: 0; top: 0; width: 0; height: 0;
+  border-radius: 10px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 1;
+  box-shadow: 0 0 0 9999px rgba(6, 4, 10, 0.74),
+              0 0 18px 4px rgba(255, 216, 58, 0.55),
+              inset 0 0 12px 2px rgba(255, 216, 58, 0.35);
+  border: 2px solid var(--ga-gold-warm);
+  transition: left 0.34s cubic-bezier(0.2, 0.8, 0.2, 1),
+              top 0.34s cubic-bezier(0.2, 0.8, 0.2, 1),
+              width 0.34s cubic-bezier(0.2, 0.8, 0.2, 1),
+              height 0.34s cubic-bezier(0.2, 0.8, 0.2, 1),
+              opacity 0.3s ease-out;
+}
+.tut-spotlight.show { opacity: 1; }
+.tut-spotlight.pulse { animation: tut-spot-pulse 1.6s ease-in-out infinite; }
+@keyframes tut-spot-pulse {
+  0%, 100% { border-color: rgba(232, 200, 120, 0.7); }
+  50%      { border-color: rgba(255, 216, 58, 1); }
+}
+
+/* ---- Docked dialog — JS places it on whichever side of the spotlight has
+   room (left/top set in px, centred via translateX). No arrow tail to fall out
+   of alignment; the spotlight itself directs the eye. */
 .tut-dialog {
   position: absolute;
-  /* left + top are set per-step by positionTutorialBubble() in game.js so the
-     arrow lines up with the active target. .arrow-down/up center the bubble
-     horizontally on the target; .arrow-left/right center vertically. */
   left: 50%;
-  top: 32%;
-  max-width: 340px;
+  top: 70px;
+  transform: translateX(-50%);
+  max-width: 360px;
   min-width: 260px;
   width: max-content;
-  background: rgba(20, 12, 4, 0.94);
+  background: rgba(20, 12, 4, 0.96);
   border: 1.5px solid var(--ga-gold-mid);
-  border-radius: 4px;
-  padding: 14px 18px 12px;
+  border-radius: 5px;
+  padding: 15px 20px 13px;
   pointer-events: auto;
+  z-index: 3;
   box-shadow:
     inset 0 1px 0 rgba(255, 216, 58, 0.18),
-    0 14px 30px rgba(0, 0, 0, 0.7);
+    0 16px 36px rgba(0, 0, 0, 0.8);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -4567,53 +4770,13 @@ body.tutorial-mode .tutorial-overlay { display: block; }
   transition: left 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
               top  0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.tut-dialog.arrow-down,
-.tut-dialog.arrow-up    { transform: translateX(-50%); }
-.tut-dialog.arrow-left,
-.tut-dialog.arrow-right { transform: translateY(-50%); }
 .tut-dialog::before {
   content: '';
   position: absolute;
   inset: -1px;
   border: 1px solid rgba(255, 216, 58, 0.35);
-  border-radius: 5px;
+  border-radius: 6px;
   pointer-events: none;
-}
-/* Arrow tail — direction set by .arrow-{down,up,left,right} class. */
-.tut-dialog::after {
-  content: '';
-  position: absolute;
-  width: 0; height: 0;
-  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55));
-  pointer-events: none;
-}
-.tut-dialog.arrow-down::after {
-  left: 50%; bottom: -11px;
-  transform: translateX(-50%);
-  border-left: 11px solid transparent;
-  border-right: 11px solid transparent;
-  border-top: 11px solid var(--ga-gold-mid);
-}
-.tut-dialog.arrow-up::after {
-  left: 50%; top: -11px;
-  transform: translateX(-50%);
-  border-left: 11px solid transparent;
-  border-right: 11px solid transparent;
-  border-bottom: 11px solid var(--ga-gold-mid);
-}
-.tut-dialog.arrow-right::after {
-  top: 50%; right: -11px;
-  transform: translateY(-50%);
-  border-top: 11px solid transparent;
-  border-bottom: 11px solid transparent;
-  border-left: 11px solid var(--ga-gold-mid);
-}
-.tut-dialog.arrow-left::after {
-  top: 50%; left: -11px;
-  transform: translateY(-50%);
-  border-top: 11px solid transparent;
-  border-bottom: 11px solid transparent;
-  border-right: 11px solid var(--ga-gold-mid);
 }
 .tut-dialog-text {
   margin: 0;

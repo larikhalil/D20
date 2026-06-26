@@ -22,6 +22,9 @@
     <div class="stage-decor decor-blood"  aria-hidden="true"></div>
     <div class="stage-decor decor-ash"    aria-hidden="true"></div>
     <div class="vignette"></div>
+    <!-- Damage vignette — red edge-darkening that pulses on a hit, opacity
+         scaled to the damage taken (set via --dmg-alpha in impactFeedback). -->
+    <div class="impact-vignette" id="impact-vignette" aria-hidden="true"></div>
     <div class="torch torch-left"><div class="flame"></div><div class="glow"></div></div>
     <div class="torch torch-right"><div class="flame"></div><div class="glow"></div></div>
     <div class="dust"></div>
@@ -252,9 +255,9 @@
           <div class="diff-tag">Easiest</div>
         </button>
       </div>
-      <div class="form-row">
+      <p class="diff-hint">Choose a peril to set it — you'll return to the gate.</p>
+      <div class="form-row form-row-single">
         <button class="ghost-btn" data-back="menu">⟵ Return</button>
-        <button class="primary-btn" data-difficulty-confirm>Confirm</button>
       </div>
     </div>
   </section>
@@ -614,10 +617,15 @@
          bottom of the arena, plus a step counter in the top-right.
          =========================================================== -->
     <div id="tutorial-overlay" class="tutorial-overlay" aria-hidden="true">
+      <!-- Spotlight: a dimming layer with a glowing hole punched around the
+           current target. JS (positionTutorialBubble) sizes/positions it to the
+           target's measured rect. Purely visual (pointer-events:none) so the
+           highlighted card stays clickable. -->
+      <div class="tut-spotlight" id="tut-spotlight" aria-hidden="true"></div>
       <div class="tut-step-pill">
         Step <span id="tut-step-num">1</span> of <span id="tut-step-total">8</span>
       </div>
-      <div class="tut-dialog">
+      <div class="tut-dialog" id="tut-dialog">
         <p class="tut-dialog-text" id="tut-dialog-text">Click the glowing <strong>3 ♣ Goblin</strong> to fight it.</p>
         <button class="primary-btn tut-ok-btn" id="tut-ok-btn" type="button" style="display:none">OK ▸</button>
       </div>
