@@ -95,3 +95,14 @@
 - This spec is the design record.
 - A live task checklist (harness tasks) tracks implementation progress so nothing is lost across the single large pass.
 - README `## Changelog` gets the shipped summary.
+
+## Implementation result (2026-06-26 — SHIPPED)
+All 9 tracked tasks completed in one pass. Verified live via headless Chrome (puppeteer-core) on desktop (1280×800) and portrait phones (390×844, 360×740):
+- ✅ Difficulty Confirm button removed; clicking a peril returns to the menu with the label updated (verified `Vanquisher`).
+- ✅ HP meter drains: bar width `100% → 75%` and fill colour graded gold→amber as HP went `20 → 15` (was previously a no-op).
+- ✅ Tutorial spotlight + docked dialog render and sit fully inside the viewport on desktop and both phone widths.
+- ✅ Combat impact, living-D20 states, lighting grade, parallax, tactile cards, transitions, and menu/type polish all in.
+- ✅ Motion safety: `body.no-anim` (now applied on load) + `prefers-reduced-motion` collapse motion to instant.
+- ✅ **0 page errors** after removing a pre-existing dead `tutNav(0)` call in `init()` that threw on every load.
+
+Not pushed to GitHub — left to the repo owner.

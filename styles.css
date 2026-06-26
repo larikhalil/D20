@@ -5213,4 +5213,31 @@ body.tutorial-mode .ctrl-btn.undo-btn { opacity: 0.35; pointer-events: none; }
   .log-line { white-space: normal; }
 }
 
+/* =============================================================
+   MOTION SAFETY (v0.7) — honour the in-game Animations toggle
+   (body.no-anim) and the OS "reduce motion" preference. Both collapse
+   animations/transitions to instant so the game stays fully playable
+   and static. JS already bypasses cutscenes when animations are off;
+   this covers the ambient + new cinematic CSS layers.
+   ============================================================= */
+body.no-anim *,
+body.no-anim *::before,
+body.no-anim *::after {
+  animation: none !important;
+  transition-duration: 0.001ms !important;
+}
+/* With animations off, drop the cursor-driven parallax offset too. */
+body.no-anim .bg-stone,
+body.no-anim .color-grade,
+body.no-anim .lens-fx {
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
 

@@ -162,6 +162,28 @@ Diamonds tier from a humble dagger to a great two-handed axe.
 
 Newest first.
 
+### 2026-06-26 (cinematic restyle) — "Living Candlelight" visual overhaul
+
+A large visual/feel pass plus two UX fixes. **No rule changes** — the 44-card ruleset, scoring, and difficulty knobs are untouched. Design record: `docs/superpowers/specs/2026-06-26-d20-cinematic-restyle-design.md`.
+
+**Fixes (the things that were broken)**
+- **Health bar now actually moves.** `renderHp()` was setting the bar's `height`, but the rail is a *horizontal* fill pinned top/bottom — so the bar never budged and only the number changed. It now drives the fill width as a liquid **vitality meter** that drains with a travelling shimmer + bright leading edge and colour-grades **gold → amber → blood** as HP falls.
+- **Difficulty is one click.** The redundant **Confirm** button is gone — click a peril and it ignites, then slides you back to the gate with that difficulty set.
+- **Tutorial is aligned on every screen.** Replaced the hand-placed arrow bubble (which fell out of alignment after clamping, and assumed the overlay sat at 0,0) with a **spotlight coach-mark**: the arena dims, a glowing hole is punched around the *measured* target rect, and the dialog docks on whichever side has room — clamped inside the viewport, repositioning on resize/rotate and after the deal settles. Verified on desktop and at 360/390px portrait.
+- **Removed a dead `tutNav(0)` call** in `init()` that threw an uncaught `ReferenceError` on every page load.
+
+**Living Candlelight (cinematic)**
+- **The D20 is alive** — a healthy gold aura at full HP, a red tremble when wounded (≤6), and a violent throb with blood cracks at death's door (≤3).
+- **Combat has weight** — arena shake, a red impact-vignette, and (on heavy blows) a hit-stop punch, all scaled to the damage taken so a 2 feels light and a 13 feels devastating. Floating numbers got a weightier overshoot + arc.
+- **Lighting & depth** — a warm/cool colour grade, a film lens layer (centre bloom + faint edge chromatic fringe), and **pointer parallax** drifting the far wall against the play layer (desktop only).
+- **Tactile cards** — spring deal-in with a left-to-right stagger, desktop 3D **tilt toward the cursor**, suit-tinted hover glow, a grounded contact shadow, and suit-flavoured exits (monster bursts, potion sinks, weapon flies off).
+- **Cinematic transitions** — a camera-push + defocus as each screen arrives, and letterbox bars framing the door-descent room transition.
+- **Menu & type** — a metallic sheen sweeping the title, a torch-glint on button hover, and the difficulty cards reworked as carved, torch-lit stone tablets.
+
+**Safety** — everything honours the in-game **Animations** toggle (`body.no-anim`, now also applied on load) and the OS **reduce-motion** preference, collapsing to a clean static, fully-playable game.
+
+**Files touched:** `index.html`, `styles.css`, `game.js`, `README.md`, plus the design spec under `docs/superpowers/specs/`.
+
 ### 2026-06-26 (follow-up) — Mobile HUD fit & sheathe discoverability
 
 Fixes from real-device feedback on the pass below.

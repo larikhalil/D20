@@ -3750,6 +3750,9 @@ function loadOptions() {
   $('opt-tip').checked   = state.options.tip;
   Audio.setSfx(state.options.sfx);
   Audio.setMusic(state.options.music);
+  // Apply the animations preference to <body> on load (not just on toggle) so a
+  // saved "animations off" actually disables motion from the first frame.
+  document.body.classList.toggle('no-anim', !state.options.anim);
 
   if (save.lastDifficulty) {
     // Map legacy v0.4.x difficulty keys to the v0.4.9 5-tier ladder so saves
@@ -4027,7 +4030,6 @@ function init() {
   loadOptions();
   selectDifficulty(state.difficulty);
   wireEvents();
-  tutNav(0);
   showScreen('menu');
 }
 
