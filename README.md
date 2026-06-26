@@ -162,6 +162,16 @@ Diamonds tier from a humble dagger to a great two-handed axe.
 
 Newest first.
 
+### 2026-06-26 (follow-up) — Mobile HUD fit & sheathe discoverability
+
+Fixes from real-device feedback on the pass below.
+
+- **One-time sheathe hint** — the first time a weapon is equipped on a touch device, a tip appears ("tap your weapon to sheathe it and fight bare-handed") and the weapon card pulses three times. Shown once ever (persisted in `localStorage` as `d20_sheathe_hint`).
+- **Armory no longer oversized / cut off** — the weapon stack's layout box is a fixed `102×110`, and a CSS `transform: scale()` only shrank it *visually* while still reserving the full size, which shoved the Armory label off the right edge and made the HUD tall. On mobile the reserved space is now collapsed with negative margins matched to the scale, so the footprint equals what you see.
+- **Controls always visible** — Flee / Undo / Pause now sit on their own centred, full-width HUD row on phones instead of overflowing the right edge at narrow widths.
+- **Action history reads in full** — mobile log lines wrap instead of truncating with an ellipsis.
+- **Fixed a mobile regression** — the earlier unscoped `#screen-game` safe-area padding was overriding the mobile `padding:0` reflow (adding ~56px of horizontal padding and pushing content off-screen). Safe-area insets are now scoped inside the mobile layout where they belong.
+
 ### 2026-06-26 — Mobile / touch, juice & solidity pass
 
 A polish pass focused on phone playability and feel — **no rule changes**.

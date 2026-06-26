@@ -2412,6 +2412,26 @@ function renderWeapon() {
 // fight resolves bare-handed — this is the touch-friendly equivalent of holding
 // Shift on desktop (phones have no Shift key). Freely reversible, no turn cost;
 // the weapon's dulling-curse is paused while sheathed and resumes when redrawn.
+// One-time coaching: the first time a weapon is equipped on a touch device,
+// point out that the weapon card is tappable to sheathe (fight bare-handed) —
+// there's no Shift key and no hover to reveal it otherwise. Persisted in
+// localStorage so it shows once, ever.
+function maybeSheatheHint() {
+  try {
+    if (state.tutorialMode) return;
+    if (localStorage.getItem('d20_sheathe_hint') === '1') return;
+    const touch = window.matchMedia && window.matchMedia('(hover: none)').matches;
+    if (!touch) return;
+    localStorage.setItem('d20_sheathe_hint', '1');
+    hint('Tip: tap your weapon to sheathe it and fight bare-handed', 3200);
+    const wc = document.querySelector('.slot-card.weapon-card');
+    if (wc) {
+      wc.classList.add('hint-pulse');
+      setTimeout(() => wc.classList.remove('hint-pulse'), 2800);
+    }
+  } catch (e) { /* localStorage/matchMedia unavailable — skip the hint */ }
+}
+
 function toggleSheathe() {
   if (!state.weapon || state.inputLocked || state.isOver || state.tutorialMode) return;
   state.weaponSheathed = !state.weaponSheathed;
@@ -2774,6 +2794,7 @@ function doEquip(slotIndex) {
     onEnd: () => {
       consumeCard(slotIndex);
       renderWeapon();
+      maybeSheatheHint();
       // 600ms (matches doFight/doDrink) — must wait for consumeCard's 500ms
       // internal state-null timer so finalizeAction sees the correct remaining count.
       setTimeout(() => finalizeAction(), state.mode === 'quick' ? 160 : 600);

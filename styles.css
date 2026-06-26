@@ -4774,14 +4774,6 @@ body.tutorial-mode .ctrl-btn.undo-btn { opacity: 0.35; pointer-events: none; }
 .slot-card .sheathe-badge:empty { display: none; }
 .weapon-meta .hud-value .sub-val.sub-sheathed { color: var(--bone-mid); }
 
-/* --- Notch / rounded-corner safe-area insets (max() => desktop unchanged) --- */
-#screen-game {
-  padding-left: max(28px, env(safe-area-inset-left));
-  padding-right: max(28px, env(safe-area-inset-right));
-}
-.hud { padding-top: max(8px, env(safe-area-inset-top)); }
-.hp-panel { right: max(32px, calc(env(safe-area-inset-right) + 8px)); }
-
 /* --- Touch devices: bigger tap targets + a one-time tappable affordance --- */
 @media (hover: none) {
   .ctrl-btn { min-width: 44px; min-height: 44px; padding: 8px 12px; }
@@ -4792,6 +4784,70 @@ body.tutorial-mode .ctrl-btn.undo-btn { opacity: 0.35; pointer-events: none; }
                 inset 0 1px 0 rgba(255,255,255,0.3),
                 0 0 0 1px rgba(232,216,180,0.35);
   }
+}
+
+/* One-time "tap to sheathe" attention pulse on the weapon card (first equip). */
+.slot-card.weapon-card.hint-pulse {
+  animation: sheathe-hint-pulse 0.9s ease-in-out 3;
+}
+@keyframes sheathe-hint-pulse {
+  0%, 100% { box-shadow: 0 6px 14px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.3); }
+  50%      { box-shadow: 0 6px 14px rgba(0,0,0,0.6), 0 0 0 3px var(--gold-bright),
+                         0 0 18px rgba(232,200,120,0.9), inset 0 1px 0 rgba(255,255,255,0.3); }
+}
+
+/* ---------------------------------------------------------------------------
+   2026-06-26 (mobile follow-up) — fit the HUD to phone widths.
+   These are scoped to the mobile reflow so they don't clobber desktop. The
+   earlier unscoped #screen-game safe-area padding has been removed; insets are
+   now applied additively here where the layout is actually padding:0.
+   --------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  /* Notch / rounded-corner insets — additive on top of the mobile padding:0. */
+  #screen-game {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .hud {
+    padding-top: max(6px, env(safe-area-inset-top));
+    /* Centre row 1 (deck + weapon/armory); controls take their own row below. */
+    justify-content: center;
+    row-gap: 6px;
+  }
+  /* Always give the Flee/Undo/Pause cluster its own full-width, centred row so
+     it can never be pushed off the right edge at narrow widths (the prior
+     space-between layout let it overflow). */
+  .controls-block {
+    flex-basis: 100%;
+    justify-content: center;
+    gap: 10px;
+  }
+  .hp-panel { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+
+  /* The weapon stack's layout box is a fixed 102×110 — a CSS transform only
+     shrinks it visually, so it still RESERVES the full size and shoves the
+     Armory label off the right edge. Collapse the reserved space with negative
+     margins matched to the scale so the box footprint equals what you see. */
+  .weapon-block { gap: 6px; align-items: center; }
+  .weapon-stack {
+    transform: scale(0.56);
+    transform-origin: top left;
+    margin-right: -45px;   /* 102 × (1 − 0.56) */
+    margin-bottom: -48px;  /* 110 × (1 − 0.56) */
+  }
+  .weapon-meta { min-width: 0; }
+  .weapon-meta .hud-value { font-size: 13px; white-space: nowrap; }
+  .weapon-meta .hud-value .sub-val { font-size: 9px; }
+
+  /* Action history was single-line with an ellipsis (hence "cut off"). Let it
+     wrap and give it a touch more room so full messages read on a phone. */
+  .action-log {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    max-width: 78%;
+  }
+  .log-line { white-space: normal; }
 }
 
 
