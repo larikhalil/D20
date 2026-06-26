@@ -12,6 +12,10 @@
 <body>
 <div id="app">
 
+  <!-- Cinematic letterbox bars (slide in during the door-descent transition) -->
+  <div class="letterbox top" aria-hidden="true"></div>
+  <div class="letterbox bottom" aria-hidden="true"></div>
+
   <!-- ATMOSPHERE LAYERS -->
   <div class="atmosphere" aria-hidden="true">
     <div class="bg-stone"></div>
@@ -29,6 +33,11 @@
     <div class="torch torch-right"><div class="flame"></div><div class="glow"></div></div>
     <div class="dust"></div>
     <div class="grain"></div>
+    <!-- Cinematic colour grade (warm key pool + cool shadows) and a film lens
+         layer (centre bloom + faint edge chromatic fringe). Background-only:
+         they grade the environment behind the cards for depth. -->
+    <div class="color-grade" aria-hidden="true"></div>
+    <div class="lens-fx" aria-hidden="true"></div>
     <div class="flash-overlay" id="flash-overlay"></div>
   </div>
 

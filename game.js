@@ -2891,7 +2891,13 @@ function flashCard(slotIndex, cls) {
 }
 function consumeCard(slotIndex) {
   const cardEl = qs('.card', $('slot-'+slotIndex));
-  if (cardEl) cardEl.classList.add('consumed');
+  const card = state.room[slotIndex];
+  if (cardEl) {
+    // Suit-flavoured exit: monster bursts, potion sinks, weapon flies off.
+    if (card && SUIT[card.suit]) cardEl.classList.add('exit-' + SUIT[card.suit].kind);
+    cardEl.style.transform = '';   // clear any lingering hover-tilt inline transform
+    cardEl.classList.add('consumed');
+  }
   // Adventure mode: also fade the entity tile. Both modes' visuals fade in
   // sync — the underlying state.room nullification happens once for both.
   const advEl = document.getElementById('adv-entity-' + slotIndex);
@@ -2973,6 +2979,8 @@ function refillRoom() {
     Audio.play('footstep');
     setTimeout(() => Audio.play('footstep'), 220);
     setTimeout(() => Audio.play('footstep'), 440);
+    // Letterbox in to frame the descent (skipped when animations are off).
+    if (state.options.anim) document.body.classList.add('cinematic');
     setTimeout(() => openDungeonDoor(), 550);
     setTimeout(() => zoomCameraThroughDoor(), 600);
     setTimeout(() => {
@@ -2981,6 +2989,7 @@ function refillRoom() {
     }, preWalkMs);
     setTimeout(() => closeDungeonDoor(), preWalkMs + 700);
     setTimeout(() => resetCameraZoom(), preWalkMs + 850);
+    setTimeout(() => document.body.classList.remove('cinematic'), preWalkMs + 850);
   } else if (advScene) {
     advScene.classList.add('room-transition');
     setTimeout(() => advScene.classList.remove('room-transition'), 720);
@@ -3864,6 +3873,51 @@ function wireEvents() {
   window.addEventListener('resize', () => {
     if (state.tutorialMode) positionTutorialBubble();
   });
+
+  // Desktop pointer-tilt on room cards — the card leans toward the cursor in
+  // 3D (the slot already has perspective). Delegated on #room-row so it keeps
+  // working across re-renders. Cleared on exit and respects the anim toggle.
+  const roomRow = $('room-row');
+  if (roomRow && window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    roomRow.addEventListener('mousemove', (e) => {
+      if (!state.options.anim) return;
+      const card = e.target.closest && e.target.closest('.card');
+      if (!card || card.classList.contains('consumed')) return;
+      const r = card.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width  - 0.5;   // -0.5 .. 0.5
+      const py = (e.clientY - r.top)  / r.height - 0.5;
+      card.classList.add('tilting');
+      card.style.transform =
+        `translateY(-12px) rotateX(${(-py * 12).toFixed(2)}deg) rotateY(${(px * 15).toFixed(2)}deg) scale(1.04)`;
+    }, { passive: true });
+    roomRow.addEventListener('mouseout', (e) => {
+      const card = e.target.closest && e.target.closest('.card');
+      if (!card) return;
+      if (e.relatedTarget && card.contains(e.relatedTarget)) return;  // still inside the card
+      card.style.transform = '';
+      card.classList.remove('tilting');
+    });
+  }
+
+  // Pointer parallax — drift the far wall + colour grade against the static
+  // play layer for depth. Desktop pointers only; honours the animation toggle
+  // and reduced-motion; throttled to one update per frame.
+  if (window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    let parRaf = 0, pmx = 0, pmy = 0;
+    window.addEventListener('mousemove', (e) => {
+      if (!state.options.anim) return;
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      pmx = (e.clientX / window.innerWidth  - 0.5) * 2;
+      pmy = (e.clientY / window.innerHeight - 0.5) * 2;
+      if (parRaf) return;
+      parRaf = requestAnimationFrame(() => {
+        parRaf = 0;
+        const root = document.documentElement.style;
+        root.setProperty('--par-x', pmx.toFixed(3));
+        root.setProperty('--par-y', pmy.toFixed(3));
+      });
+    }, { passive: true });
+  }
 
   // In-game controls
   $('skip-btn').addEventListener('click', () => { Audio.play('click'); doSkip(); });

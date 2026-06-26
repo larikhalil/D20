@@ -858,6 +858,56 @@ body.mode-adventure .player-layer.action-attack {
   mix-blend-mode: overlay;
 }
 
+/* =============================================================
+   CINEMATIC GRADE + FILM LENS + POINTER PARALLAX (v0.7)
+   --par-x / --par-y are set from the cursor (desktop only) in game.js.
+   ============================================================= */
+.color-grade {
+  position: absolute;
+  inset: -2%;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 42%, rgba(255,182,92,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 120% 80% at 50% 118%, rgba(8,20,34,0.0) 40%, rgba(8,20,34,0.30) 100%),
+    linear-gradient(180deg, rgba(10,18,32,0.20) 0%, transparent 28%);
+  mix-blend-mode: soft-light;
+  animation: grade-breathe 7s ease-in-out infinite;
+  transform: translate(calc(var(--par-x, 0) * -5px), calc(var(--par-y, 0) * -5px));
+}
+@keyframes grade-breathe {
+  0%, 100% { opacity: 0.82; }
+  50%      { opacity: 1; }
+}
+.lens-fx {
+  position: absolute;
+  inset: -2%;
+  pointer-events: none;
+  z-index: 3;
+  background: radial-gradient(ellipse 60% 50% at 50% 45%, rgba(255,240,210,0.05) 0%, transparent 60%);
+  mix-blend-mode: screen;
+  transform: translate(calc(var(--par-x, 0) * -8px), calc(var(--par-y, 0) * -8px));
+}
+/* faint RGB edge fringe — subtle filmic chromatic aberration */
+.lens-fx::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  box-shadow:
+    inset 7px 0 28px -12px rgba(255,40,40,0.45),
+    inset -7px 0 28px -12px rgba(50,130,255,0.45),
+    inset 0 8px 30px -14px rgba(120,80,255,0.25);
+}
+/* Parallax on the far wall — scaled up slightly so the translate never
+   reveals an edge. Cards/HUD live in #screen-* (above the atmosphere) and
+   stay put, so the wall drifting under them reads as depth. */
+.bg-stone {
+  transform: translate(calc(var(--par-x, 0) * 9px), calc(var(--par-y, 0) * 9px)) scale(1.06);
+}
+
 .flash-overlay {
   position: absolute;
   inset: 0;
@@ -914,7 +964,32 @@ body.mode-adventure .player-layer.action-attack {
 .screen.active {
   display: flex;
   opacity: 1;
+  /* Cinematic enter: a subtle camera-push + defocus as the screen arrives.
+     Runs reliably even from display:none (animations fire on newly-shown
+     elements, unlike transitions). */
+  animation: screen-enter 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+@keyframes screen-enter {
+  0%   { opacity: 0; transform: scale(1.045); filter: blur(3px) brightness(1.3); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: scale(1); filter: blur(0) brightness(1); }
+}
+
+/* Letterbox bars — slide in to frame the "descend through the door" beat
+   (toggled via body.cinematic during the adventure room transition). */
+.letterbox {
+  position: absolute;
+  left: 0; right: 0;
+  height: 0;
+  background: #000;
+  z-index: 70;
+  pointer-events: none;
+  transition: height 0.45s cubic-bezier(0.7, 0, 0.3, 1);
+  box-shadow: 0 0 30px rgba(0,0,0,0.9);
+}
+.letterbox.top    { top: 0; }
+.letterbox.bottom { bottom: 0; }
+body.cinematic .letterbox { height: 7vh; }
 
 /* =============================================================
    FRAMES (shared ornate panel look)
@@ -1307,14 +1382,24 @@ body.mode-quick .stage-banner  { font-size: 10px; letter-spacing: 0.22em; }
 }
 .title-main {
   font-size: clamp(64px, 9vw, 110px);
-  background: linear-gradient(180deg, var(--gold-bright) 0%, var(--gold) 50%, var(--gold-deep) 100%);
+  /* Metallic gold with a slow sheen sweeping across the letterforms. */
+  background: linear-gradient(110deg,
+    var(--gold-deep) 0%, var(--gold) 22%, #fff3c8 44%,
+    var(--gold-bright) 56%, var(--gold) 78%, var(--gold-deep) 100%);
+  background-size: 240% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   text-shadow:
-    0 0 30px rgba(217,122,60,0.35),
+    0 0 34px rgba(217,122,60,0.4),
+    0 2px 0 rgba(255,230,170,0.25),
     0 4px 0 rgba(0,0,0,0.6);
-  filter: drop-shadow(0 2px 0 #000);
+  filter: drop-shadow(0 2px 0 #000) drop-shadow(0 5px 3px rgba(0,0,0,0.55));
+  animation: title-sheen 6.5s ease-in-out infinite;
+}
+@keyframes title-sheen {
+  0%, 100% { background-position: 0% 0; }
+  50%      { background-position: 100% 0; }
 }
 .d20-letter {
   font-style: italic;
@@ -1362,13 +1447,42 @@ body.mode-quick .stage-banner  { font-size: 10px; letter-spacing: 0.22em; }
   border-radius: 3px;
   pointer-events: none;
 }
+.menu-btn { overflow: hidden; }
+/* A torch-glint that sweeps across the button on hover. */
+.menu-btn::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -70%;
+  width: 55%;
+  background: linear-gradient(100deg, transparent, rgba(255,232,170,0.28), transparent);
+  transform: skewX(-18deg);
+  pointer-events: none;
+  opacity: 0;
+}
 .menu-btn:hover {
   background: linear-gradient(180deg, rgba(60, 36, 12, 0.85), rgba(40, 24, 8, 0.7));
   color: var(--ga-gold-light);
+  box-shadow:
+    inset 0 -2px 0 rgba(0,0,0,0.3),
+    0 3px 0 var(--ga-shadow),
+    0 0 24px -4px rgba(255,180,80,0.6);
+}
+.menu-btn:hover::after { animation: menu-btn-shine 0.7s ease-out; }
+@keyframes menu-btn-shine {
+  0%   { left: -70%; opacity: 0; }
+  25%  { opacity: 1; }
+  100% { left: 130%; opacity: 0; }
 }
 .menu-btn:active {
   transform: translateY(2px);
   box-shadow: inset 0 2px 0 rgba(0,0,0,0.4), 0 1px 0 var(--ga-shadow);
+}
+.menu-btn.primary:hover {
+  box-shadow:
+    inset 0 -2px 0 rgba(0,0,0,0.3),
+    0 3px 0 var(--ga-shadow),
+    0 0 30px -2px rgba(255,140,50,0.75);
 }
 .menu-btn.primary {
   background: linear-gradient(180deg, rgba(217, 122, 60, 0.6), rgba(122, 32, 8, 0.7));
@@ -1486,31 +1600,61 @@ body.mode-quick .stage-banner  { font-size: 10px; letter-spacing: 0.22em; }
   margin: 28px 0;
 }
 
+/* Difficulty cards as carved, torch-lit stone tablets. */
 .diff-card {
-  background: rgba(20, 12, 4, 0.4);
+  background:
+    linear-gradient(180deg, rgba(58,50,42,0.55) 0%, rgba(24,16,10,0.7) 55%, rgba(14,9,5,0.8) 100%);
   border: 1px solid var(--ga-gold-dark);
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 18px 16px;
   cursor: pointer;
   position: relative;
-  transition: transform 0.1s ease-out;
+  box-shadow:
+    inset 0 1px 0 rgba(255,220,150,0.12),
+    inset 0 0 20px rgba(0,0,0,0.5),
+    0 5px 12px rgba(0,0,0,0.5);
+  transition: transform 0.14s ease-out, box-shadow 0.2s ease-out, border-color 0.2s;
+}
+/* warm light catching the top edge of the tablet */
+.diff-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  pointer-events: none;
+  background: radial-gradient(ellipse 90% 50% at 50% -10%, rgba(255,180,90,0.16), transparent 60%);
 }
 .diff-card:hover {
   border-color: var(--ga-gold-mid);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,220,150,0.18),
+    inset 0 0 20px rgba(0,0,0,0.4),
+    0 10px 22px rgba(0,0,0,0.6),
+    0 0 22px -6px rgba(255,180,80,0.5);
 }
 .diff-card.selected {
   border-color: var(--ga-gold-warm);
-  box-shadow: 0 0 12px rgba(255, 216, 58, 0.4);
-  background: rgba(40, 24, 8, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255,230,170,0.25),
+    inset 0 0 26px rgba(120,70,20,0.3),
+    0 0 22px rgba(255,216,58,0.5),
+    0 0 44px -8px rgba(255,180,80,0.6);
+  background:
+    linear-gradient(180deg, rgba(74,56,28,0.7) 0%, rgba(40,24,8,0.78) 100%);
 }
 .diff-card .diff-rank {
   font-family: var(--display);
   font-weight: 900;
-  font-size: 28px;
+  font-size: 30px;
   color: var(--ga-gold-warm);
   text-align: center;
   margin-bottom: 6px;
+  text-shadow: 0 2px 0 #000, 0 0 14px rgba(255,180,80,0.4);
+}
+.diff-card.selected .diff-rank {
+  color: var(--ga-gold-light);
+  text-shadow: 0 2px 0 #000, 0 0 18px rgba(255,216,58,0.8);
 }
 .diff-card h3 {
   font-family: var(--display-px);
@@ -2335,14 +2479,24 @@ body.mode-quick .stage-banner  { font-size: 10px; letter-spacing: 0.22em; }
 }
 
 .card.flipping {
-  animation: card-deal 0.6s cubic-bezier(0.4, 0.1, 0.3, 1) both;
+  animation: card-deal 0.7s cubic-bezier(0.34, 1.4, 0.5, 1) both;
 }
+/* Stagger the four cards so the room "deals out" left-to-right. */
+.room-row .card-slot:nth-child(1) .card.flipping { animation-delay: 0ms;   }
+.room-row .card-slot:nth-child(2) .card.flipping { animation-delay: 70ms;  }
+.room-row .card-slot:nth-child(3) .card.flipping { animation-delay: 140ms; }
+.room-row .card-slot:nth-child(4) .card.flipping { animation-delay: 210ms; }
 
 @keyframes card-deal {
-  0%   { transform: translateY(-200px) rotateY(180deg) rotate(-12deg); opacity: 0; }
-  60%  { opacity: 1; }
-  100% { transform: translateY(0) rotateY(0) rotate(0); opacity: 1; }
+  0%   { transform: translateY(-220px) rotateY(180deg) rotate(-14deg) scale(0.9); opacity: 0; }
+  55%  { opacity: 1; }
+  78%  { transform: translateY(8px) rotateY(0) rotate(1deg) scale(1.02); }
+  100% { transform: translateY(0) rotateY(0) rotate(0) scale(1); opacity: 1; }
 }
+
+/* Faster transition while the cursor is tilting a card (set in JS), so the
+   3D tilt tracks the pointer without the slow staging transition lagging. */
+.card.tilting { transition: transform 0.12s ease-out; }
 
 .card.consumed {
   pointer-events: none;
@@ -2352,6 +2506,28 @@ body.mode-quick .stage-banner  { font-size: 10px; letter-spacing: 0.22em; }
   0%   { transform: scale(1) translateY(0); opacity: 1; filter: brightness(1); }
   40%  { transform: scale(1.1) translateY(-12px); opacity: 1; filter: brightness(1.4); }
   100% { transform: scale(0.5) translateY(-100px) rotate(8deg); opacity: 0; filter: brightness(0.4); }
+}
+
+/* Suit-flavoured exits (class added in consumeCard): a slain monster bursts
+   and dissolves, a drained potion sinks toward the vitality die, a claimed
+   weapon flashes gold and flies toward the armoury. */
+.card.consumed.exit-monster { animation: card-exit-monster 0.55s cubic-bezier(0.5,0,0.75,0) forwards; }
+.card.consumed.exit-potion  { animation: card-exit-potion 0.6s ease-in forwards; }
+.card.consumed.exit-weapon  { animation: card-exit-weapon 0.55s cubic-bezier(0.3,0.7,0.2,1) forwards; }
+@keyframes card-exit-monster {
+  0%   { transform: scale(1); opacity: 1; filter: brightness(1) saturate(1); }
+  22%  { transform: scale(1.18) rotate(-3deg); filter: brightness(1.9) saturate(1.6) drop-shadow(0 0 14px rgba(255,48,64,0.9)); }
+  100% { transform: scale(0.7) rotate(10deg); opacity: 0; filter: brightness(0.3) blur(4px); }
+}
+@keyframes card-exit-potion {
+  0%   { transform: scale(1) translateY(0); opacity: 1; filter: brightness(1); }
+  30%  { transform: scale(1.08) translateY(-8px); filter: brightness(1.5) drop-shadow(0 0 10px rgba(132,216,120,0.8)); }
+  100% { transform: scale(0.45) translate(40px, 90px) rotate(-6deg); opacity: 0; filter: brightness(0.6) hue-rotate(20deg); }
+}
+@keyframes card-exit-weapon {
+  0%   { transform: scale(1); opacity: 1; filter: brightness(1); }
+  30%  { transform: scale(1.14) rotate(3deg); filter: brightness(1.8) drop-shadow(0 0 14px rgba(255,216,58,0.9)); }
+  100% { transform: scale(0.5) translate(-60px, -80px) rotate(-14deg); opacity: 0; filter: brightness(0.5); }
 }
 
 .card-face {
@@ -2391,17 +2567,41 @@ body.mode-quick .stage-banner  { font-size: 10px; letter-spacing: 0.22em; }
   pointer-events: none;
 }
 
-/* Hover lift */
+/* Hover lift (CSS fallback; JS adds a pointer-tracked 3D tilt on desktop) */
 .card:not(.consumed):hover {
   transform: translateY(-12px);
 }
 .card:not(.consumed):hover .card-face {
-  filter: brightness(1.1);
+  filter: brightness(1.12);
   box-shadow:
     var(--shadow-card),
-    0 24px 36px -8px rgba(0,0,0,0.7),
+    0 26px 40px -8px rgba(0,0,0,0.75),
+    0 0 22px -2px var(--card-glow, rgba(255,216,58,0.0)),
     inset 0 1px 0 rgba(255,255,255,0.4);
 }
+/* Suit-tinted hover glow — set per card kind. */
+.card.monster { --card-glow: rgba(255,48,64,0.55); }
+.card.potion  { --card-glow: rgba(132,216,120,0.55); }
+.card.weapon  { --card-glow: rgba(120,200,255,0.55); }
+
+/* Contact shadow that stays grounded as the card lifts — sells weight/depth.
+   Lives on the slot (not the card) so the card's lift separates from it. */
+.card-slot::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -6px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, transparent 72%);
+  filter: blur(3px);
+  z-index: -1;
+  opacity: 0.7;
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+}
+.card-slot:hover::after { opacity: 0.95; transform: scale(1.06); }
 
 /* Suit-specific styles */
 .card.monster .card-face {
