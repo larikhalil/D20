@@ -425,6 +425,7 @@ const state = {
   deck: [],
   room: [null, null, null, null],     // 4 fixed slots; null = empty
   weapon: null,                       // { suit: 'diamonds', value: N }
+  weaponSheathed: false,              // true = weapon set aside; all fights bare-handed (touch-friendly bare-hand)
   lastMonsterValue: null,
   weaponStack: [],                    // monsters defeated under current weapon
   skipsLeft: 1,
@@ -457,6 +458,40 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const qs  = (sel, root=document) => root.querySelector(sel);
 const qsa = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+// Whether the equipped weapon will actually be used in combat. False when
+// unarmed OR when the blade is sheathed (the touch-friendly bare-hand toggle).
+// All combat-prediction math and the fight resolver route through this so the
+// sheathed state is reflected consistently in badges and damage.
+function weaponActive() { return !!state.weapon && !state.weaponSheathed; }
+
+// Haptic feedback for touch devices. Tied to the SFX option (no separate
+// toggle) and guarded for browsers without the Vibration API. No-op on desktop.
+function haptic(kind) {
+  if (!state.options.sfx) return;
+  if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return;
+  const PATTERNS = {
+    hit:   25,
+    heavy: [0, 35, 25, 45],
+    heal:  [0, 12, 30, 12],
+    light: 10,
+    death: [0, 90, 50, 130]
+  };
+  try { navigator.vibrate(PATTERNS[kind] || 10); } catch (e) { /* ignore */ }
+}
+
+// Spawn a short-lived floating number off a room card at the impact frame, so
+// the damage/heal reads where the player's eyes already are (the struck card) —
+// not only at the HP die across the screen. Complements the existing hp-floater.
+function spawnCardFloater(slotIndex, text, cls) {
+  const slot = $('slot-' + slotIndex);
+  if (!slot) return;
+  const f = document.createElement('div');
+  f.className = 'card-floater ' + cls;
+  f.textContent = text;
+  slot.appendChild(f);
+  setTimeout(() => { if (f.parentNode) f.parentNode.removeChild(f); }, 850);
+}
 
 // -----------------------------------------------------------
 // SAVE / LOAD
@@ -2034,7 +2069,7 @@ function svgIllustration(card) {
 function outcomeBadgeHtml(card) {
   const kind = SUIT[card.suit].kind;
   if (kind === 'monster') {
-    const useWeapon = state.weapon && (state.lastMonsterValue === null || card.value < state.lastMonsterValue);
+    const useWeapon = weaponActive() && (state.lastMonsterValue === null || card.value < state.lastMonsterValue);
     const dmg = useWeapon ? Math.max(0, card.value - state.weapon.value) : card.value;
     const tier = dmg === 0 ? 'safe' : dmg <= 3 ? 'low' : dmg <= 6 ? 'mid' : dmg <= 10 ? 'high' : 'lethal';
     return `<div class="outcome-badge dmg ${tier}" title="Damage if you fight this">
@@ -2064,7 +2099,7 @@ function renderCard(slotIndex) {
   const glyph = SUIT[card.suit].glyph;
   const label = VALUE_LABEL[card.value];
   const constraintLocked = (kind === 'monster'
-    && state.weapon
+    && weaponActive()
     && state.lastMonsterValue !== null
     && card.value >= state.lastMonsterValue);
 
@@ -2138,7 +2173,7 @@ function renderAdventureScene() {
     // Locked-out: weapon equipped + card.value >= last-slain (blade dulls).
     // Surfaces as a darker tile + struck-through prediction so user sees why.
     const constraintLocked = (kind === 'monster'
-      && state.weapon
+      && weaponActive()
       && state.lastMonsterValue !== null
       && card.value >= state.lastMonsterValue);
     el.classList.toggle('locked-out', constraintLocked);
@@ -2253,10 +2288,10 @@ function refreshBadges() {
     let dmg = 0, heal = 0, tier = '';
     let constraintLocked = false;
     if (kind === 'monster') {
-      const useWeapon = state.weapon && (state.lastMonsterValue === null || card.value < state.lastMonsterValue);
+      const useWeapon = weaponActive() && (state.lastMonsterValue === null || card.value < state.lastMonsterValue);
       dmg = useWeapon ? Math.max(0, card.value - state.weapon.value) : card.value;
       tier = dmg === 0 ? 'safe' : dmg <= 3 ? 'low' : dmg <= 6 ? 'mid' : dmg <= 10 ? 'high' : 'lethal';
-      constraintLocked = state.weapon && state.lastMonsterValue !== null && card.value >= state.lastMonsterValue;
+      constraintLocked = weaponActive() && state.lastMonsterValue !== null && card.value >= state.lastMonsterValue;
     } else if (kind === 'potion') {
       heal = Math.min(card.value, state.maxHp - state.hp);
     }
@@ -2341,22 +2376,26 @@ function renderWeapon() {
       </div>`;
   }
 
+  const sheathed = state.weaponSheathed;
   html += `
-    <div class="slot-card weapon-card${equipChanged ? ' just-equipped' : ''}">
+    <div class="slot-card weapon-card${equipChanged ? ' just-equipped' : ''}${sheathed ? ' sheathed' : ''}" role="button" tabindex="0" title="${sheathed ? 'Blade sheathed — tap to draw' : 'Tap to sheathe (fight bare-handed)'}">
       <div class="slot-corner">
         <span>${VALUE_LABEL[w.value]}</span>
         <span class="sc-suit">${SUIT[w.suit].glyph}</span>
       </div>
       <div class="slot-art">${weaponSvg(w.value, { staticPose: true })}</div>
+      <div class="sheathe-badge">${sheathed ? 'SHEATHED' : ''}</div>
     </div>`;
 
-  if (state.lastMonsterValue !== null) {
+  if (!sheathed && state.lastMonsterValue !== null) {
     html += `<div class="weapon-vs">&lt; ${VALUE_LABEL[state.lastMonsterValue]}</div>`;
   }
 
   stack.innerHTML = html;
 
-  if (state.lastMonsterValue !== null) {
+  if (sheathed) {
+    meta.innerHTML = `${VALUE_LABEL[w.value]}♦<span class="sub-val sub-sheathed">sheathed</span>`;
+  } else if (state.lastMonsterValue !== null) {
     meta.innerHTML = `${VALUE_LABEL[w.value]}♦<span class="sub-val">&lt; ${VALUE_LABEL[state.lastMonsterValue]}</span>`;
   } else {
     meta.innerHTML = `${VALUE_LABEL[w.value]}♦<span class="sub-val">ready</span>`;
@@ -2367,6 +2406,20 @@ function renderWeapon() {
   // Sync the back-strap weapon on the player layer so the equipped weapon is
   // visible at all times during gameplay (not just during cutscenes).
   Player.renderEquippedWeapon();
+}
+
+// Toggle the equipped blade between drawn and sheathed. While sheathed, every
+// fight resolves bare-handed — this is the touch-friendly equivalent of holding
+// Shift on desktop (phones have no Shift key). Freely reversible, no turn cost;
+// the weapon's dulling-curse is paused while sheathed and resumes when redrawn.
+function toggleSheathe() {
+  if (!state.weapon || state.inputLocked || state.isOver || state.tutorialMode) return;
+  state.weaponSheathed = !state.weaponSheathed;
+  Audio.play(state.weaponSheathed ? 'skip' : 'equip');
+  haptic('light');
+  renderWeapon();
+  refreshBadges();
+  hint(state.weaponSheathed ? 'Blade sheathed — fighting bare-handed' : 'Blade drawn', 1100);
 }
 
 // Apply an "element-<kind>" class to the weapon UI based on the equipped
@@ -2446,16 +2499,16 @@ function onCardHover(slotIndex, e) {
   const sName = SUIT[card.suit].name;
   let html = '';
   if (kind === 'monster') {
-    const constraintLocked = state.weapon
+    const constraintLocked = weaponActive()
       && state.lastMonsterValue !== null
       && card.value >= state.lastMonsterValue;
     html += `<span class="tip-title">Fight ${VALUE_NAME[card.value]} of ${sName}</span>`;
-    if (state.weapon && !constraintLocked) {
+    if (weaponActive() && !constraintLocked) {
       const dmg = Math.max(0, card.value - state.weapon.value);
       html += `<span class="tip-line">Strike with ${VALUE_LABEL[state.weapon.value]}♦ blade</span>`;
       html += `<span class="tip-line"><strong>Damage taken: ${dmg}</strong></span>`;
-      html += `<span class="tip-hint">Hold SHIFT to fight bare-handed</span>`;
-    } else if (state.weapon && constraintLocked) {
+      html += `<span class="tip-hint">Hold SHIFT (or sheathe the blade) to fight bare-handed</span>`;
+    } else if (weaponActive() && constraintLocked) {
       html += `<span class="tip-line tip-warn">Blade too dull (last slew ${VALUE_LABEL[state.lastMonsterValue]})</span>`;
       html += `<span class="tip-line"><strong>Damage taken: ${card.value}</strong> (bare-handed)</span>`;
     } else {
@@ -2558,6 +2611,7 @@ function snapshot() {
     deck: state.deck,
     room: state.room,
     weapon: state.weapon,
+    weaponSheathed: state.weaponSheathed,
     lastMonsterValue: state.lastMonsterValue,
     weaponStack: state.weaponStack,
     skipsLeft: state.skipsLeft,
@@ -2600,7 +2654,9 @@ function onCardClick(slotIndex, evt) {
   }
   const kind = SUIT[card.suit].kind;
   if (kind === 'monster') {
-    const forceBare = evt && evt.shiftKey;
+    // Bare-handed override: desktop Shift+click OR the sheathed-weapon toggle
+    // (the touch-friendly equivalent, since phones have no Shift key).
+    const forceBare = (evt && evt.shiftKey) || state.weaponSheathed;
     return doFight(slotIndex, forceBare);
   }
   if (kind === 'potion')   return doDrink(slotIndex);
@@ -2646,7 +2702,11 @@ function doFight(slotIndex, forceBare) {
       if (!useWeapon && state.weapon && !forceBare && damage > 0) state.bareHits++;
       if (damage > 0 && state.hp >= state.maxHp) state.fullHpHits++;
       Audio.play('attack');
+      // Floating combat number off the struck card (where the eyes are),
+      // complementing the HP-die floater. "0" when the blade fully absorbs.
+      spawnCardFloater(slotIndex, damage > 0 ? '−' + damage : '0', damage > 0 ? 'dmg' : 'safe');
       if (damage > 0) {
+        haptic(damage >= 6 ? 'heavy' : 'hit');
         applyHpChange(-damage);
         if (state.options.anim) setTimeout(() => Player.play('hurt'), 200);
       }
@@ -2675,7 +2735,8 @@ function doDrink(slotIndex) {
       state.potionsUsed++;
       state.cardsCleared++;
       log(`Quaff ${VALUE_LABEL[card.value]}♥ — restore ${heal} vitality${heal < card.value ? ' (' + (card.value-heal) + ' wasted)' : ''}`);
-      if (heal > 0) applyHpChange(heal);
+      spawnCardFloater(slotIndex, heal > 0 ? '+' + heal : '0', heal > 0 ? 'heal' : 'safe');
+      if (heal > 0) { haptic('heal'); applyHpChange(heal); }
     },
     onEnd: () => {
       consumeCard(slotIndex);
@@ -2701,12 +2762,14 @@ function doEquip(slotIndex) {
   }, {
     onImpact: () => {
       state.weapon = { suit: card.suit, value: card.value };
+      state.weaponSheathed = false;   // drawing a fresh blade un-sheathes
       state.lastMonsterValue = null;
       state.weaponStack = [];
       state.weaponsEquipped++;
       state.cardsCleared++;
       log(`Equip ${VALUE_LABEL[card.value]}♦ — blade ready`);
       Audio.play('equip');
+      haptic('light');
     },
     onEnd: () => {
       consumeCard(slotIndex);
@@ -2753,6 +2816,7 @@ function finalizeAction() {
   refreshBadges();
   if (state.hp <= 0) {
     state.isOver = true;
+    haptic('death');
     return endGame(false);
   }
   // Tutorial mode: after a scripted CARD step resolves, show the result text
@@ -2772,6 +2836,7 @@ function finalizeAction() {
   const allEmpty = remaining === 0 && state.deck.length === 0;
   if (allEmpty) {
     state.isOver = true;
+    haptic('heavy');
     return endGame(true);
   }
   if (remaining <= 1 && state.deck.length > 0) {
@@ -3210,6 +3275,7 @@ function newGame(diff, tutorial) {
   }
   state.room = [null, null, null, null];
   state.weapon = null;
+  state.weaponSheathed = false;
   state.lastMonsterValue = null;
   state.weaponStack = [];
   state.skipsLeft = cfg.skips;
@@ -3658,6 +3724,22 @@ function wireEvents() {
   $('skip-btn').addEventListener('click', () => { Audio.play('click'); doSkip(); });
   $('undo-btn').addEventListener('click', () => doUndo());
   $('pause-btn').addEventListener('click', () => { Audio.play('click'); togglePause(); });
+
+  // Sheathe / draw the equipped blade (touch-friendly bare-hand toggle).
+  // Delegated on the stable #weapon-stack parent since the weapon card is
+  // re-rendered on every renderWeapon() call.
+  const weaponStack = $('weapon-stack');
+  if (weaponStack) {
+    weaponStack.addEventListener('click', (e) => {
+      if (e.target.closest('.weapon-card')) toggleSheathe();
+    });
+    weaponStack.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.weapon-card')) {
+        e.preventDefault();
+        toggleSheathe();
+      }
+    });
+  }
 
   // Pause overlay buttons
   qsa('[data-pause]').forEach(btn => {

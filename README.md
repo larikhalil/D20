@@ -81,8 +81,18 @@ You may flee a room. The four cards return to the bottom of the deck and four ne
 | Action | How |
 |---|---|
 | Resolve a card | Click it |
-| Fight bare-handed (overriding equipped weapon) | **Shift+click** the monster |
+| Fight bare-handed (overriding equipped weapon) | **Shift+click** the monster, **or** tap the weapon in the HUD to **sheathe** it |
 | Hover for predicted outcome | Card tooltip appears |
+
+### Touch (phone / tablet)
+
+| Action | How |
+|---|---|
+| Resolve a card | Tap it |
+| Fight bare-handed | **Tap the equipped weapon** in the HUD to *sheathe* it — while sheathed, every fight is bare-handed. Tap it again to draw the blade. |
+| Predicted outcome | Always shown on each card's corner badge (`−6` / `+8` / `−4`) |
+
+Sheathing pauses the weapon's dulling-curse; drawing the blade again resumes it. Equipping a new weapon always draws it (un-sheathes). Damage and heals pulse with a short haptic buzz on supported devices (tied to the SFX setting).
 
 ### Keyboard
 
@@ -147,4 +157,26 @@ Diamonds tier from a humble dagger to a great two-handed axe.
 | 10 | Great Axe |
 
 ---
+
+## Changelog
+
+Newest first.
+
+### 2026-06-26 — Mobile / touch, juice & solidity pass
+
+A polish pass focused on phone playability and feel — **no rule changes**.
+
+**Mobile / touch**
+- **Sheathe-weapon toggle** — tap the equipped weapon in the HUD to sheathe it; while sheathed every fight resolves bare-handed. This is the touch-friendly equivalent of desktop `Shift+click` (phones have no Shift key), and it works for mouse users too. Sheathing pauses the weapon's dulling-curse; equipping a fresh blade always un-sheathes. New `state.weaponSheathed` flows through all combat-prediction math via a `weaponActive()` helper, so the corner badges and curse-lock visuals update live when you sheathe/draw. Undo restores the sheathe state.
+- **Haptics** — short vibration on hit (heavier for ≥6 damage), heal, equip/sheathe, and a longer buzz on death/win. Guarded for unsupported browsers and tied to the SFX setting (no separate toggle).
+- **Notch safe-area insets** — `env(safe-area-inset-*)` padding on the game screen / HUD / HP panel via `max()`, so desktop is unchanged but phones with notches/rounded corners don't clip the chrome.
+- **Bigger touch targets** — control buttons get a ≥44px hit area on touch devices, and the equipped weapon shows a clearer tappable affordance where there's no hover to reveal it.
+
+**Juice**
+- **Floating combat numbers** — a `−N` / `+N` now pops off the struck card at the impact frame, where the player's eyes already are, complementing the existing HP-die floater. (HP-die reaction, screen flash, and shake were already present.)
+
+**Solidity**
+- Audited the refill / undo / flee state machine — the 3-of-4 refill rule, race-lock window, and once-per-room undo were already correctly guarded; no changes needed there. Added the death/victory haptic hooks at the win/lose branches.
+
+**Files touched:** `game.js`, `styles.css`, `README.md`, plus the design spec under `docs/superpowers/specs/`.
 
