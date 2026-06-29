@@ -162,6 +162,19 @@ Diamonds tier from a humble dagger to a great two-handed axe.
 
 Newest first.
 
+### 2026-06-29 — Bigger die, dice animations & tutorial sheathe step
+
+Follow-up polish (approved from a visual mockup). No rule changes.
+
+- **Much bigger D20 on desktop.** The base/desktop die was 90px — *smaller* than the tablet die — so wide screens got the tiniest die. It's now **170px** with a 46px HP number and a larger breathing aura. The 130px tier now covers laptops up to 1100px so the big die only appears when there's room; the quick-mode card row is biased left per width so it never grazes the die (verified clash-free at 1000/1200/1280/1440px and on mobile).
+- **Damage = a full tumble.** Replaced the small wobble with a wind-back → **full 360° roll** with squash/stretch and an overshoot settle (~0.8s).
+- **Heal = a counter-spin + bloom** *(new — heal previously had no rotation)*. A smooth **−360°** spin with a springy bounce and a green vitality ring-sparkle.
+- **Tutorial now teaches sheathing.** Added a 9th step (Step 5/9) that spotlights the equipped weapon and explains: tap to **sheathe** → fight bare-handed (no Shift key), tap to draw, and that it **pauses the blade's dulling curse** so you can save a sharp edge for a bigger foe. Step total is now derived from the script length.
+
+All new motion still respects the **Animations** toggle + reduce-motion. Verified live (headless Chrome) across desktop widths and a 390px phone — die size, damage/heal animations firing, and the 9-step tutorial with the sheathe spotlight all confirmed, 0 page errors.
+
+**Files touched:** `index.html`, `styles.css`, `game.js`, `README.md`.
+
 ### 2026-06-26 (cinematic restyle) — "Living Candlelight" visual overhaul
 
 A large visual/feel pass plus two UX fixes. **No rule changes** — the 44-card ruleset, scoring, and difficulty knobs are untouched. Design record: `docs/superpowers/specs/2026-06-26-d20-cinematic-restyle-design.md`.

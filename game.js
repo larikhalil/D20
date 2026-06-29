@@ -3158,6 +3158,11 @@ const TUTORIAL_SCRIPT = [
   // -- HUD-tip steps (no card click required — just OK to advance) --
   {
     noCard: true,
+    pointAt: 'weapon',
+    hint: 'Tap your equipped <strong>weapon</strong> to <strong>sheathe</strong> it — then every fight is bare-handed (no Shift key needed). Tap it again to draw the blade.<br><br>Why bother? Sheathing <strong>pauses the blade’s dulling curse</strong> — take a weak foe bare-handed to keep a sharp edge for a bigger one.'
+  },
+  {
+    noCard: true,
     pointAt: 'flee',
     hint: 'If a room looks deadly, hit <strong>Flee</strong>. The four cards go back to the bottom of the deck and a fresh room is dealt. You start with limited flee charges.'
   },
@@ -3191,8 +3196,10 @@ function showTutorialHint() {
   if (!step) return;
   const txt = $('tut-dialog-text');
   const num = $('tut-step-num');
+  const total = $('tut-step-total');
   if (txt) txt.innerHTML = step.hint;
   if (num) num.textContent = state.tutorialStep + 1;
+  if (total) total.textContent = TUTORIAL_SCRIPT.length;
   const ok = $('tut-ok-btn');
   qsa('.card.tutorial-active').forEach(c => c.classList.remove('tutorial-active'));
   if (step.noCard) {
